@@ -1,0 +1,125 @@
+# 自動生成（cases.mjs）：S01 ログイン
+web:
+  url: http://localhost:8090/
+  cookie: ./sites/coupon-demo/tests/out/session-cookie.json
+  viewportWidth: 1280
+  viewportHeight: 1000
+  output: ./sites/coupon-demo/tests/out/01-login.json
+tasks:
+  - name: L-01_〈ログアウト〉でログイン画面へ
+    continueOnError: true
+    flow:
+      - javascript: |
+          setTimeout(() => { location.href = '/'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「マイページ」画面が表示されている
+        timeout: 15000
+      - aiTap: 「ログアウト」ボタン
+      - aiWaitFor: 「ログイン」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: L01
+      - recordToReport: L-01 ログイン画面
+  - name: L-02_未入力のままログイン
+    continueOnError: true
+    flow:
+      - aiTap: 「ログイン」ボタン
+      - aiWaitFor: 「会員IDを入力してください。」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: L02
+      - recordToReport: L-02 必須エラー
+  - name: L-03_パスワード誤り
+    continueOnError: true
+    flow:
+      - aiInput: 会員IDの入力欄
+        value: M0001
+      - aiInput: パスワードの入力欄
+        value: wrong
+      - aiTap: 「ログイン」ボタン
+      - aiWaitFor: 「会員IDまたはパスワードが正しくありません。」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: L03
+      - recordToReport: L-03 認証失敗
+  - name: L-04_正しい会員ID・パスワードでログイン
+    continueOnError: true
+    flow:
+      - aiInput: パスワードの入力欄
+        value: pass1234
+      - aiTap: 「ログイン」ボタン
+      - aiWaitFor: 「マイページ」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: L04
+      - aiAssert: 保有ポイントに「1,200 pt」と表示されている
+        name: L04_ai
+      - recordToReport: L-04 マイページ

@@ -1,0 +1,22 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated run artifacts
+node_modules/
+midscene_run/
+*.log
+
+# Screenshots and recordings may contain live application data
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# サイト別の実行結果（core/runner.mjs の出力）
+sites/*/tests/out/
+sites/*/tests/evidence/
+
+# ローカル専用の試験（リポジトリに含めない）
+kmt/

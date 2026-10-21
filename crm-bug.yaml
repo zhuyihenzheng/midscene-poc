@@ -1,0 +1,38 @@
+web:
+  serve: ./site-bug
+  url: index.html
+  viewportWidth: 1280
+  viewportHeight: 800
+  output: ./midscene_run/crm-bug-result.json
+
+tasks:
+  - name: 新建联系人_正常系
+    continueOnError: true
+    flow:
+      - aiInput: 姓名输入框
+        value: 山田太郎
+      - aiInput: 邮箱输入框
+        value: yamada@example.jp
+      - aiTap: 地区下拉框
+      - ai: 在地区下拉框中选择「大阪」
+      - aiTap: VIP 客户复选框
+      - recordToReport: 入力完了
+      - aiTap: 蓝色的保存按钮
+      - aiWaitFor: 页面上方出现「保存しました」的提示
+        timeout: 10000
+      - aiAssert: 联系人一览表格里有一行 姓名为山田太郎、地区为大阪、VIP 列为★
+      - aiQuery: "联系人一览表格的所有行，返回数组，每项 {name, email, region, vip}"
+        name: contacts
+      - recordToReport: 保存結果
+
+  - name: 新建联系人_异常系_邮箱格式错误
+    continueOnError: true
+    flow:
+      - aiInput: 姓名输入框
+        value: 佐藤花子
+      - aiInput: 邮箱输入框
+        value: sato-at-example
+      - aiTap: 蓝色的保存按钮
+      - aiAssert: 邮箱输入框旁边显示红色错误提示「邮箱格式不正确」
+      - aiAssert: 联系人一览表格里没有佐藤花子
+      - recordToReport: エラー表示

@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Acme CRM</title>
+<style>body{margin:0;font:15px -apple-system,sans-serif;background:#f4f5f7}
+.bar{background:#2d3e50;color:#fff;padding:10px 16px;display:flex;gap:18px;align-items:center}
+.bar a{color:#cfe3ff;text-decoration:none}.wrap{display:flex}
+.side{width:200px;background:#fff;min-height:600px;padding:12px;box-sizing:border-box;border-right:1px solid #ddd}
+.side div{padding:8px;border-radius:6px;margin-bottom:4px;cursor:pointer}.side div:hover{background:#eef}
+.main{padding:24px;flex:1}.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px;width:560px}
+input[type=text],input[type=email],select{padding:6px;border:1px solid #bbb;border-radius:4px;width:240px}
+button{padding:7px 14px;border-radius:6px;border:1px solid #888;background:#fff;margin-right:8px;cursor:pointer}
+.primary{background:#2a6df4;color:#fff;border-color:#2a6df4}.danger{background:#d9534f;color:#fff;border-color:#d9534f}
+.err{color:#c62828;font-size:13px;margin-left:6px}.toast{padding:10px 14px;border-radius:6px;margin-bottom:12px;display:none}
+.ok{background:#e7f6ea;color:#1b5e20;border:1px solid #a5d6a7}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:6px;text-align:left}
+</style></head><body>
+<div class="bar"><b>Acme CRM</b><a href="#">首页</a><a href="#">报表</a><a href="#">设置</a></div>
+<div class="wrap"><div class="side"><div>📥 收件箱</div><div>👥 联系人</div><div>💼 商机</div><div>🗑 回收站</div></div>
+<div class="main">
+<div id="toast" class="toast ok">保存しました</div>
+<div class="card"><h3 style="margin-top:0">新建联系人</h3>
+<p>姓名 <input type="text" id="name"><span class="err" id="e-name"></span></p>
+<p>邮箱 <input type="email" id="email"><span class="err" id="e-email"></span></p>
+<p>地区 <select id="region"><option>东京</option><option>大阪</option><option>福冈</option></select></p>
+<p><label><input type="checkbox" id="vip"> VIP 客户</label></p>
+<button id="cancel">取消</button><button id="save" class="primary">保存</button></div>
+<div class="card"><b>联系人一览</b><table><thead><tr><th>姓名</th><th>邮箱</th><th>地区</th><th>VIP</th></tr></thead><tbody id="rows">
+<tr><td>田中一郎</td><td>tanaka@example.jp</td><td>东京</td><td>—</td></tr></tbody></table></div>
+</div></div>
+<script>
+const $=id=>document.getElementById(id);
+$('save').onclick=()=>{
+  const n=$('name').value.trim(), m=$('email').value.trim(); let ok=true;
+  $('e-name').textContent=n?'':'请输入姓名'; if(!n) ok=false;
+  const em=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m); $('e-email').textContent=em?'':'邮箱格式不正确'; if(!em) ok=false;
+  if(!ok){$('toast').style.display='none';return;}
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${n}</td><td>${m}</td><td>东京</td><td>${$('vip').checked?'★':'—'}</td>`;
+  $('rows').appendChild(tr); $('toast').style.display='block';
+  $('name').value='';$('email').value='';$('vip').checked=false;
+};
+$('cancel').onclick=()=>{$('name').value='';$('email').value='';$('e-name').textContent='';$('e-email').textContent='';};
+</script></body></html>

@@ -1,0 +1,22 @@
+{
+  "name": "midscene-poc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@midscene/cli": "^1.15.3",
+    "@midscene/web": "^1.15.3",
+    "@playwright/test": "^1.64.0",
+    "playwright": "^1.64.0"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

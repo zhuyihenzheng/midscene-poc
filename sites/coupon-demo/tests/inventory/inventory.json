@@ -1,0 +1,548 @@
+[
+ {
+  "url": "/",
+  "title": "マイページ｜ポイントクーポン",
+  "h1": "マイページ",
+  "headings": [],
+  "fields": [],
+  "groups": [],
+  "buttons": [
+   "ログアウト"
+  ],
+  "links": [
+   {
+    "text": "クーポン一覧",
+    "href": "/coupons"
+   },
+   {
+    "text": "交換履歴",
+    "href": "/history"
+   }
+  ],
+  "tables": [],
+  "descriptions": [
+   {
+    "会員名": "山田 太郎",
+    "保有ポイント": "1,200 pt"
+   }
+  ],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「マイページ」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「クーポン一覧」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「交換履歴」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/coupons",
+  "title": "クーポン一覧｜ポイントクーポン",
+  "h1": "クーポン一覧",
+  "headings": [],
+  "fields": [],
+  "groups": [
+   {
+    "group": "カテゴリ",
+    "type": "radio",
+    "name": "cat",
+    "options": [
+     {
+      "label": "すべて",
+      "value": "すべて",
+      "checked": true
+     },
+     {
+      "label": "飲食",
+      "value": "飲食",
+      "checked": false
+     },
+     {
+      "label": "買物",
+      "value": "買物",
+      "checked": false
+     },
+     {
+      "label": "娯楽",
+      "value": "娯楽",
+      "checked": false
+     }
+    ],
+    "visible": true
+   }
+  ],
+  "buttons": [
+   "ログアウト",
+   "絞り込む"
+  ],
+  "links": [
+   {
+    "text": "交換する",
+    "href": "/coupons/1/exchange"
+   },
+   {
+    "text": "交換する",
+    "href": "/coupons/3/exchange"
+   },
+   {
+    "text": "交換する",
+    "href": "/coupons/4/exchange"
+   },
+   {
+    "text": "マイページへ戻る",
+    "href": "/"
+   }
+  ],
+  "tables": [
+   {
+    "caption": "クーポン 4 件",
+    "headers": [
+     "クーポン名",
+     "カテゴリ",
+     "必要ポイント",
+     "在庫",
+     "操作"
+    ],
+    "rows": [
+     [
+      "カフェ 200円引き",
+      "飲食",
+      "300 pt",
+      "10 枚",
+      "交換する"
+     ],
+     [
+      "ベーカリー 100円引き",
+      "飲食",
+      "150 pt",
+      "0 枚",
+      "在庫なし"
+     ],
+     [
+      "書店 500円券",
+      "買物",
+      "600 pt",
+      "2 枚",
+      "交換する"
+     ],
+     [
+      "映画 1,000円券",
+      "娯楽",
+      "1,200 pt",
+      "3 枚",
+      "交換する"
+     ]
+    ]
+   }
+  ],
+  "descriptions": [],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「クーポン一覧」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "カテゴリの「すべて」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "カテゴリの「飲食」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "カテゴリの「買物」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "カテゴリの「娯楽」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「絞り込む」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「カフェ 200円引き」の行の「交換する」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「書店 500円券」の行の「交換する」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「映画 1,000円券」の行の「交換する」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「マイページへ戻る」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/history",
+  "title": "交換履歴｜ポイントクーポン",
+  "h1": "交換履歴",
+  "headings": [],
+  "fields": [],
+  "groups": [],
+  "buttons": [
+   "ログアウト"
+  ],
+  "links": [
+   {
+    "text": "マイページへ戻る",
+    "href": "/"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「交換履歴」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「マイページへ戻る」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/coupons/1/exchange",
+  "title": "クーポン交換｜ポイントクーポン",
+  "h1": "クーポン交換",
+  "headings": [],
+  "fields": [
+   {
+    "label": "枚数",
+    "type": "text",
+    "name": "qty",
+    "id": "qty",
+    "required": true,
+    "maxlength": null,
+    "inputmode": "numeric",
+    "hint": "1〜5 枚",
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "メールアドレス",
+    "type": "email",
+    "name": "email",
+    "id": "email",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": false,
+    "disabled": true
+   }
+  ],
+  "groups": [
+   {
+    "group": "受取方法",
+    "type": "radio",
+    "name": "method",
+    "options": [
+     {
+      "label": "メール",
+      "value": "メール",
+      "checked": false
+     },
+     {
+      "label": "アプリ",
+      "value": "アプリ",
+      "checked": false
+     }
+    ],
+    "visible": true
+   }
+  ],
+  "buttons": [
+   "ログアウト",
+   "確認"
+  ],
+  "links": [
+   {
+    "text": "クーポン一覧へ戻る",
+    "href": "/coupons"
+   }
+  ],
+  "tables": [],
+  "descriptions": [
+   {
+    "クーポン名": "カフェ 200円引き",
+    "必要ポイント（1 枚）": "300 pt",
+    "在庫": "10 枚",
+    "保有ポイント": "1,200 pt"
+   }
+  ],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「クーポン交換」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "枚数の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "メールアドレスの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "受取方法の「メール」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "受取方法の「アプリ」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「確認」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「クーポン一覧へ戻る」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/coupons/1/confirm",
+  "title": "クーポン交換｜ポイントクーポン",
+  "h1": "クーポン交換",
+  "headings": [],
+  "fields": [
+   {
+    "label": "枚数",
+    "type": "text",
+    "name": "qty",
+    "id": "qty",
+    "required": true,
+    "maxlength": null,
+    "inputmode": "numeric",
+    "hint": "1〜5 枚",
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "メールアドレス",
+    "type": "email",
+    "name": "email",
+    "id": "email",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": false,
+    "disabled": true
+   }
+  ],
+  "groups": [
+   {
+    "group": "受取方法",
+    "type": "radio",
+    "name": "method",
+    "options": [
+     {
+      "label": "メール",
+      "value": "メール",
+      "checked": false
+     },
+     {
+      "label": "アプリ",
+      "value": "アプリ",
+      "checked": false
+     }
+    ],
+    "visible": true
+   }
+  ],
+  "buttons": [
+   "ログアウト",
+   "確認"
+  ],
+  "links": [
+   {
+    "text": "クーポン一覧へ戻る",
+    "href": "/coupons"
+   }
+  ],
+  "tables": [],
+  "descriptions": [
+   {
+    "クーポン名": "カフェ 200円引き",
+    "必要ポイント（1 枚）": "300 pt",
+    "在庫": "10 枚",
+    "保有ポイント": "1,200 pt"
+   }
+  ],
+  "messages": [
+   {
+    "role": "field",
+    "text": "枚数を入力してください。",
+    "sel": "#qty-error"
+   },
+   {
+    "role": "field",
+    "text": "受取方法を選択してください。",
+    "sel": "#method-error"
+   }
+  ],
+  "via": "クーポン交換で未入力のまま〈確認〉",
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「クーポン交換」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "枚数の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "メールアドレスの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "受取方法の「メール」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "受取方法の「アプリ」ラジオボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「確認」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「クーポン一覧へ戻る」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「枚数を入力してください。」と表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「受取方法を選択してください。」と表示されている",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/coupons/1/confirm",
+  "title": "交換内容の確認｜ポイントクーポン",
+  "h1": "交換内容の確認",
+  "headings": [],
+  "fields": [],
+  "groups": [],
+  "buttons": [
+   "ログアウト",
+   "交換する",
+   "戻る"
+  ],
+  "links": [],
+  "tables": [],
+  "descriptions": [
+   {
+    "クーポン名": "カフェ 200円引き",
+    "枚数": "1 枚",
+    "受取方法": "アプリ",
+    "必要ポイント合計": "300 pt",
+    "交換後の保有ポイント": "900 pt"
+   }
+  ],
+  "messages": [],
+  "via": "クーポン交換で 1 枚・アプリを入力して〈確認〉",
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「交換内容の確認」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「交換する」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「戻る」ボタン",
+    "ok": true
+   }
+  ]
+ }
+]

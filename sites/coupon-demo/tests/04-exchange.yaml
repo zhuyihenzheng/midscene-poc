@@ -1,0 +1,152 @@
+# 自動生成（cases.mjs）：S05〜S07 交換確定・履歴
+web:
+  url: http://localhost:8090/
+  cookie: ./sites/coupon-demo/tests/out/session-cookie.json
+  viewportWidth: 1280
+  viewportHeight: 1000
+  output: ./sites/coupon-demo/tests/out/04-exchange.json
+tasks:
+  - name: X-01_カフェ 2 枚・メールで確認画面
+    continueOnError: true
+    flow:
+      - javascript: |
+          setTimeout(() => { location.href = '/coupons/1/exchange'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「クーポン交換」画面が表示されている
+        timeout: 15000
+      - aiInput: 枚数の入力欄
+        value: '2'
+      - aiTap: 受取方法の「メール」ラジオボタン
+      - aiInput: メールアドレスの入力欄
+        value: taro@example.com
+      - aiTap: 「確認」ボタン
+      - aiWaitFor: 「交換内容の確認」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: X01
+      - aiAssert: 必要ポイント合計に「600 pt」と表示されている
+        name: X01_ai
+      - recordToReport: X-01 確認画面
+  - name: X-02_〈戻る〉で入力値を保持
+    continueOnError: true
+    flow:
+      - aiTap: 「戻る」ボタン
+      - aiWaitFor: 「クーポン交換」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: X02
+      - recordToReport: X-02 戻る
+  - name: X-03_交換確定と送信電文
+    continueOnError: true
+    flow:
+      - aiTap: 「確認」ボタン
+      - aiWaitFor: 「交換内容の確認」画面が表示されている
+        timeout: 15000
+      - aiTap: 「交換する」ボタン
+      - aiWaitFor: 「クーポンの交換が完了しました。」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: X03
+      - recordToReport: X-03 交換完了
+  - name: X-04_交換履歴・在庫・保有ポイントへの反映
+    continueOnError: true
+    flow:
+      - aiTap: 「交換履歴」リンク
+      - aiWaitFor: 「交換履歴」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: X04_history
+      - recordToReport: X-04 交換履歴
+      - javascript: |
+          setTimeout(() => { location.href = '/coupons'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「クーポン一覧」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState() {
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
+            const fields = {};
+            document.querySelectorAll('input[id]:not([type=hidden]):not([type=radio])').forEach(e => { fields[e.id] = { value: e.value, visible: vis(e), disabled: e.disabled }; });
+            const radios = {};
+            document.querySelectorAll('input[type=radio]').forEach(e => { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; });
+            const errors = {};
+            document.querySelectorAll('.field-error').forEach(p => { if (vis(p)) errors[p.id.replace(/-error$/, '')] = txt(p); });
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            const rows = [...document.querySelectorAll('tbody tr')];
+            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, radios, errors, dl,
+              alert: txt(document.querySelector('[role=alert]')) || null, status: txt(document.querySelector('[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, table: rows.map(r => [...r.cells].map(txt)), rowLinks: rows.map(r => !!r.querySelector('a')),
+              balance: txt(document.getElementById('balance')) || null };
+          })()
+        name: X04_list
+      - recordToReport: X-04 一覧（在庫・保有ポイント）
