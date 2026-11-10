@@ -4,7 +4,7 @@
 // - aiTap / aiHover / aiInput / aiWaitFor → サイトのロケーター辞書（site.locators）で固定ロケーターに解決
 //   aiInput の対象が select なら表示名で選択、aiKeyboardPress はキー入力
 // - aiAssert → 既定は未実施（skipped）。aiAssert:true のときだけ Midscene の PlaywrightAgent で AI 判定（要モデル）
-// - recordToReport → スクリーンショット（manifest に記録し、runner が evidence/ へ取り込む）
+// - recordToReport → スクリーンショット（manifest に記録し、runner が evidence/ へ取り込む）。visual:true なら見た目の比較用の PNG も撮る
 // ケースは 1 ページ上で順に実行する（前ケースの画面を引き継ぐケースがあるため）。失敗したケースは以降のステップを打ち切り、
 // その画面を引き継ぐ後続ケース（flow が goto で始まらないケース）は「ブロック」として実行しない。
 // heal:true（要モデル）のとき、辞書で操作できなかったステップを AI で代替し、辞書の修正候補として記録する。
@@ -17,7 +17,7 @@ const DEFAULT_TIMEOUT = 15000;
 
 // site：{ url, viewport, login(browser, { viewport }) → { context, page }, locators: { resolve }, settle?, health? }
 // viewport は Midscene 版と同じにする（枠内表示・スクロール系の判定が画面サイズに依存するため）
-export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAssert = false, heal = false, agentFactory = aiAgent, log = console.log }) {
+export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAssert = false, heal = false, visual = false, agentFactory = aiAgent, log = console.log }) {
   const browser = await launch();
   const out = {}; const tasks = {}; const errors = []; const shots = []; const info = {};
   let health = null;
@@ -28,7 +28,7 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
     await context.tracing.start({ screenshots: true, snapshots: true, title: suite.file });
     const agent = aiAssert || heal ? await agentFactory(page) : null;
     const monitor = watch(page, site);
-    const ctx = { site, out, shots, shotsDir, agent, aiAssert, heal, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
+    const ctx = { site, out, shots, shotsDir, agent, aiAssert, heal, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
     let prev = null;
     for (const c of suite.cases) {
       const t0 = Date.now(); const ci = (info[c.id] = { healed: [] });
@@ -46,7 +46,7 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
         tasks[c.id] = 'failed'; ci.error = e.message.split('\n')[0];
         errors.push(`${c.id}: ${ci.error}`);
         await monitor.lint();
-        await shot(page, `${c.id} 失敗時の画面`, ctx).catch(() => {});
+        await shot(page, `${c.id} 失敗時の画面`, { ...ctx, visual: false }).catch(() => {});
       }
       monitor.setCase(null);
       ci.sec = +((Date.now() - t0) / 1000).toFixed(1);
@@ -123,12 +123,18 @@ async function settle(page) {
 }
 
 // Midscene の recordToReport と同じく「その時点の画面（ビューポート）」を撮る
-async function shot(page, label, { shots, shotsDir }) {
+// visual:true のときは比較用に PNG も撮る（アニメーションを止め、site.visual.mask の要素を塗りつぶす）
+async function shot(page, label, { shots, shotsDir, visual, site }) {
   const caseId = label.split(' ')[0];
   const n = shots.filter(s => s.caseId === caseId).length + 1;
   const file = path.join(shotsDir, `${caseId}_${n}_${label.slice(caseId.length).trim().replace(/[\\/:*?"<>|（）() ]+/g, '_')}.jpg`);
   await page.screenshot({ path: file, type: 'jpeg', quality: 80 });
-  shots.push({ caseId, label, file });
+  const entry = { caseId, label, file };
+  if (visual) {
+    entry.png = file.replace(/\.jpg$/, '.png');
+    await page.screenshot({ path: entry.png, type: 'png', animations: 'disabled', caret: 'hide', mask: (site.visual?.mask ?? []).map(sel => page.locator(sel)) });
+  }
+  shots.push(entry);
 }
 
 // aiAssert の AI 判定・--heal の代替操作に使う Midscene エージェント。.env の MIDSCENE_MODEL_* を使用

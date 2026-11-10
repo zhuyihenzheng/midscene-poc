@@ -49,6 +49,8 @@ npm run demo
 
 每个用例还会自动检查：JS 异常、HTTP 5xx、画面上出现 `undefined` / `NaN`、图片加载失败（算 NG）；横向滚动条、文字被截断、输入框没有 label（只提示）。
 
+加上 `--visual` 后，每张证跡截图会和 `visual-baseline/` 里的基准图片比较，不同的地方以"注意"列出并附差分图。第一次执行会自动登记基准；有意的界面改动用 `--update-visual` 接受。图片会因系统和字体而不同，所以基准保存在各自的电脑上，不进仓库。
+
 确认某个 NG 是已知缺陷后，执行 `node sites/<站点>/tests/run.mjs --update-baseline` 登记到 `baseline.json`，并在 `note` 里写上票号。之后只有新出现的 NG、内容变了的 NG 才会让命令以失败结束。
 
 ## 常用命令
@@ -60,6 +62,7 @@ node sites/<站点>/tests/run.mjs --help              # 所有选项
 node sites/<站点>/tests/run.mjs --build-only        # 不开浏览器：检查用例写法、生成仕様書和覆盖率
 node sites/<站点>/tests/run.mjs --only 03-input     # 只跑一个 suite
 node sites/<站点>/tests/run.mjs --retries 1         # 操作失败的 suite 重跑一次
+node sites/<站点>/tests/run.mjs --visual            # 把截图和基准图片逐像素比较，发现布局、颜色的变化
 node core/new-site.mjs <站点> --url <起始URL>       # 生成新站点的模板
 node core/explore.mjs sites/<站点>/tests/site.mjs   # 采集画面（输入项、按钮、消息）
 npm test                                            # 框架自身的测试

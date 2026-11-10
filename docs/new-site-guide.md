@@ -44,6 +44,7 @@ node sites/<name>/tests/run.mjs --engine playwright --build-only     # 4. 检查
 node sites/<name>/tests/run.mjs --engine playwright                  # 5. 执行（不需要模型）
 node sites/<name>/tests/run.mjs --engine playwright --only 03-input  # 只重跑一个 suite
 node sites/<name>/tests/run.mjs --update-baseline --eval-only        # 把确认过的 NG 登记为已知
+node sites/<name>/tests/run.mjs --engine playwright --visual         # 同时比较截图（第一次执行登记基准图片）
 node sites/<name>/tests/run.mjs --engine midscene                    # 有模型时：用 AI 操作跑一遍
 ```
 
@@ -66,7 +67,7 @@ node sites/<name>/tests/run.mjs --engine midscene                    # 有模型
 | NG（不一致） | 读到了值，但和设计书不同 | 人确认后起票。`不具合票ドラフト.md` 里有草稿 |
 | NG（実行不能） | 操作不了，没读到值 | Copilot 或人修用例、辞典、等待条件 |
 | ブロック | 前一个用例中断，没有执行 | 先解决前一个 |
-| 注意 | 自动检查的提示（横向滚动条、文字截断、没有 label 的输入框） | 人判断要不要报给开发 |
+| 注意 | 自动检查的提示（横向滚动条、文字截断、没有 label 的输入框），以及 `--visual` 发现的截图差异 | 人判断要不要报给开发；有意的界面改动用 `--update-visual` 接受 |
 
 确认是已知缺陷后，执行 `--update-baseline` 把它登记到 `baseline.json`，并在 `note` 里写票号。之后这个用例显示为"既知NG"，不会让命令失败；缺陷修好后会显示"解消"，提醒你更新基准。**基准只能由人来更新**，不能为了让结果变绿而登记。
 

@@ -34,3 +34,15 @@ test('--build-only：ブラウザなしで YAML・試験仕様書・観点カバ
   assert.match(r.log, /全指示文を解決可（5 スイート・23 ケース）[\s\S]+設計書の 20 項目中 20 項目にケースあり/);
   for (const f of ['01-login.yaml', '05-boundary.yaml', '試験仕様書.xlsx', '観点カバレッジ.md']) assert.ok(fs.existsSync(path.join(r.out, f)), f);
 });
+
+test('画面採取：ログイン後にリンクと指定した操作をたどり、標準辞書で解決できる指示文候補を書き出す', () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'inventory-'));
+  const r = spawnSync(process.execPath, ['core/explore.mjs', 'sites/coupon-demo/tests/site.mjs', '--out', out], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, COUPON_DEMO_PORT: '8094' } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const pages = JSON.parse(fs.readFileSync(path.join(out, 'inventory.json'), 'utf8'));
+  assert.deepEqual(pages.map(p => p.h1), ['マイページ', 'クーポン一覧', '交換履歴', 'クーポン交換', 'クーポン交換', '交換内容の確認']);
+  const exchange = pages[3];
+  assert.deepEqual(exchange.fields.map(f => f.label), ['枚数', 'メールアドレス']);
+  assert.ok(exchange.prompts.some(p => p.ok && p.kind === 'aiTap' && p.prompt === '受取方法の「メール」ラジオボタン'));
+  assert.match(fs.readFileSync(path.join(out, 'inventory.md'), 'utf8'), /メッセージ（field・`#qty-error`）：枚数を入力してください。/);
+});

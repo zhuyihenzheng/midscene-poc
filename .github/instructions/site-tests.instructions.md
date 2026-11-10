@@ -11,7 +11,7 @@ A site's tests live in `sites/<name>/tests/`. `cases.mjs` is the single source f
 
 | File | Role |
 |---|---|
-| `site.mjs` | `export default { name, dir, url, viewport, cookieFile, login, locators, ... }`. Optional fields: `design`, `startApp`, `beforeSuite`/`afterSuite`, `emptyJournal`, `settle`, `health`, `explore.flows`, `report` |
+| `site.mjs` | `export default { name, dir, url, viewport, cookieFile, login, locators, ... }`. Optional fields: `design`, `startApp`, `beforeSuite`/`afterSuite`, `emptyJournal`, `settle`, `health`, `visual`, `explore.flows`, `report` |
 | `cases.mjs` | `export const SUITES = [...]` |
 | `run.mjs` | `await runTests({ ...site, suites: SUITES })` (3 lines) |
 | `baseline.json` | Known NG cases. Written by `run.mjs --update-baseline`; a human adds the `note` (ticket number, reason) |
@@ -110,6 +110,8 @@ Read every expected value from the design document; the current page is only the
 | ブロック | the case continues from a case that failed to execute | Resolve the earlier case, then re-run |
 
 In Playwright mode every case also gets automatic checks (`core/health.mjs`): an uncaught JS exception, an HTTP 5xx response, a broken image, or visible `undefined` / `NaN` / `[object Object]` text makes the case NG; horizontal overflow, clipped text, unlabeled inputs, duplicate ids, `console.error`, and same-origin 4xx responses are listed as 注意 without changing the verdict. Exclude a known false positive with `site.health = { ignore: [/regex on "種別：内容"/] }`.
+
+With `--visual`, each `shot()` is also compared with the image in `visual-baseline/` (registered on the first run, per machine, not committed). A difference is a 注意 with a diff image, not an NG. Mask elements that change on every run with `site.visual = { mask: ['#clock'], threshold: 0.001 }`.
 
 `baseline.json` holds the known NG cases. The runner exits with code 1 only for results that differ from it (新規NG, NG内容の変化). Never add a case to the baseline to make a run pass: a human decides that a failure is a known defect and writes the `note`.
 

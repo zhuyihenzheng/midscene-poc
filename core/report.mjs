@@ -51,7 +51,7 @@ export async function writeResult(file, OUT, rs, evidence = {}) {
   }
   // エビデンス：ケースごとに見出し＋画面（縮小表示・原寸は evidence/ の jpg）
   const we = wb.addWorksheet('エビデンス'); we.getColumn(1).width = 110; let row = 1;
-  for (const r of rs) for (const e of evidence[r.c.id] ?? []) {
+  for (const r of rs) for (const e of (evidence[r.c.id] ?? []).filter(e => e.file.endsWith('.jpg'))) {
     const h = we.getCell(row, 1); h.value = `${r.c.id}　${r.c.title}　―　${e.label}（${r.verdict}）`; h.font = { bold: true };
     const buf = fs.readFileSync(OUT + e.file); const w = jpegSize(buf);
     const width = 760, height = Math.round(width * w.h / w.w);
@@ -85,6 +85,7 @@ function diffLines(sum) {
   if (sum.known.length) L.push(`既知の NG：${sum.known.join(', ')}`);
   if (sum.flaky.length) L.push(`やり直しで成功（不安定）：${sum.flaky.join(', ')}`);
   if (sum.healed.length) L.push(`AI で代替操作（辞書の修正が必要）：${sum.healed.join(', ')}`);
+  if (sum.visualDiff?.length) L.push(`見た目が基準と違う（意図した変更なら --update-visual）：${sum.visualDiff.join(', ')}`);
   return L;
 }
 
@@ -166,7 +167,7 @@ export function writeHtml(file, site, rs, evidence, runs, sum) {
   const rank = r => unexpected(r) ? 0 : r.verdict === 'NG' ? 1 : r.verdict === 'ブロック' ? 2 : r.diff === '解消' ? 3 : 4;
   const sorted = rs.map((r, i) => [r, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
   const cls = r => r.verdict === 'OK' ? 'ok' : r.verdict === 'NG' ? 'ng' : 'bl';
-  const img = e => { try { return `data:image/jpeg;base64,${fs.readFileSync(site.out + e.file).toString('base64')}`; } catch { return ''; } };
+  const img = e => { try { return `data:image/${e.file.endsWith('.png') ? 'png' : 'jpeg'};base64,${fs.readFileSync(site.out + e.file).toString('base64')}`; } catch { return ''; } };
   const caseHtml = r => {
     const hard = hardOf(r);
     return `<details class="case ${cls(r)}" data-v="${cls(r)}" data-u="${unexpected(r) ? 1 : 0}"${rank(r) <= 1 ? ' open' : ''}>

@@ -9,6 +9,8 @@
 //   --retries N                   「実行不能」（操作できなかった）ケースがあるスイートを最大 N 回やり直す（値の不一致はやり直さない）
 //   --ai-assert                   playwright エンジンで aiAssert だけ AI 判定する（要モデル）
 //   --heal                        playwright エンジンで、辞書で操作できなかったステップを AI で代替する（要モデル）
+//   --visual                      playwright エンジンで、証跡の画面を基準の画像（visual-baseline/）と比べ、違いを「注意」に載せる
+//   --update-visual               今回の画面を見た目の基準として保存する（--visual を含む）
 //   --update-baseline             今回の結果を baseline.json（既知の NG）として保存する
 //   --strict                      基準で NG のケースが OK になった場合も終了コード 1 にする
 //   --results <dir>               生成物（YAML・out・evidence・結果）の出力先を変える（既定はサイトの tests/）
@@ -26,6 +28,7 @@
 //   emptyJournal              journal がないときの値
 //   settle(page)              任意：操作後の待ち（既定は読み込み完了＋通信の静止）
 //   health                    任意：自動検査の設定（false で無効、{ ignore: [/…/] } で除外）
+//   visual                    任意：見た目の比較の設定（{ threshold: 0.001, mask: ['セレクター'] }）
 //   report: { title, target(), basis, sections({ pw, aiUsed }) → md 行の配列 }  任意
 import fs from 'fs'; import path from 'path'; import { spawnSync } from 'child_process';
 import yaml from 'js-yaml';
@@ -34,12 +37,13 @@ import { ROOT, rel } from './paths.mjs';
 import { evaluate } from './check.mjs';
 import { continues, toYamlSteps } from './steps.mjs';
 import { healthItems } from './health.mjs';
+import { compareVisual, visualItems } from './visual.mjs';
 import { validateCases } from './validate.mjs';
 import { writeCoverage } from './coverage.mjs';
 import { loadBaseline, compareBaseline, saveBaseline } from './baseline.mjs';
 import { writeSpec, writeResult, writeMd, writeHtml, writeJunit, writeBugDrafts } from './report.mjs';
 
-const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 17).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
+const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 19).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
 
 // setExitCode:false にすると process.exitCode を変えない（戻り値の exitCode だけを使う。フレームワーク自身の試験用）
 export async function runTests(site, args = process.argv.slice(2), { setExitCode = true } = {}) {
@@ -55,7 +59,8 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   const suites = SUITES.filter(s => !only || only.includes(s.file));
   const engine = opt('--engine') ?? (process.env[site.engineEnv ?? 'TEST_ENGINE'] || process.env.TEST_ENGINE || 'midscene');
   if (!['midscene', 'playwright'].includes(engine)) throw new Error('--engine は midscene / playwright');
-  const flags = { aiAssert: args.includes('--ai-assert'), heal: args.includes('--heal'), retries: Number(opt('--retries') ?? 0) };
+  const flags = { aiAssert: args.includes('--ai-assert'), heal: args.includes('--heal'), retries: Number(opt('--retries') ?? 0),
+    visual: args.includes('--visual') || args.includes('--update-visual'), updateVisual: args.includes('--update-visual') };
   fs.mkdirSync(OUT + 'out', { recursive: true });
 
   // ---------- 1. 生成・検査 ----------
@@ -114,7 +119,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   const count = v => results.filter(r => r.verdict === v).length;
   const summary = { site: site.name, date: new Date().toLocaleString('sv-SE'), total: results.length, ok: count('OK'), ng: count('NG'), blocked: count('ブロック'),
     known: diff.known, fresh: diff.fresh, changed: diff.changed, resolved: diff.resolved, flaky: results.filter(r => r.flaky).map(r => r.c.id),
-    healed: results.filter(r => r.healed.length).map(r => r.c.id), warnings: results.reduce((n, r) => n + r.items.filter(i => i.warn).length, 0),
+    healed: results.filter(r => r.healed.length).map(r => r.c.id), visualDiff: results.filter(r => r.items.some(i => i.visual)).map(r => r.c.id), warnings: results.reduce((n, r) => n + r.items.filter(i => i.warn).length, 0),
     exitCode: unexpected.length ? 1 : 0,
     cases: results.map(r => ({ id: r.c.id, verdict: r.verdict, cause: r.cause, diff: r.diff, ng: r.ng })) };
 
@@ -131,7 +136,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   console.log(`\n結果：${summary.ok}/${summary.total} OK` + (summary.ng ? `、NG ${summary.ng}` : '') + (summary.blocked ? `、ブロック ${summary.blocked}` : '')
     + `　基準比：${unexpected.length ? `想定外 ${unexpected.length} 件（${unexpected.map(r => `${r.c.id} ${r.diff}`).join('、')}）` : '想定どおり'}`
     + (diff.known.length ? `、既知の NG ${diff.known.length}` : '') + (diff.resolved.length ? `、解消 ${diff.resolved.length}（${diff.resolved.join(', ')}：--update-baseline で基準を更新）` : '')
-    + (summary.flaky.length ? `、不安定 ${summary.flaky.join(', ')}` : '') + (summary.healed.length ? `、AI で代替 ${summary.healed.join(', ')}` : '') + (summary.warnings ? `、注意 ${summary.warnings} 件` : ''));
+    + (summary.flaky.length ? `、不安定 ${summary.flaky.join(', ')}` : '') + (summary.healed.length ? `、AI で代替 ${summary.healed.join(', ')}` : '') + (summary.visualDiff.length ? `、見た目の違い ${summary.visualDiff.join(', ')}` : '') + (summary.warnings ? `、注意 ${summary.warnings} 件` : ''));
   console.log(`レポート：${rel(OUT + 'report.html')}`);
   if (summary.exitCode) fail();
   return { results, summary, exitCode: summary.exitCode };
@@ -160,6 +165,7 @@ export function evaluateSuite(site, s, runs) {
   const o = read(site.out + `out/${s.file}.json`) ?? {};
   const ctx = { journal: read(site.out + `out/${s.file}-journal.json`) ?? site.emptyJournal ?? {} };
   const health = read(site.out + `out/${s.file}-health.json`);
+  const visual = read(site.out + `out/${s.file}-visual.json`);
   const results = []; let prev = null;
   for (const c of s.cases) {
     const task = run.tasks?.[c.id] ?? '-';
@@ -167,6 +173,7 @@ export function evaluateSuite(site, s, runs) {
     let items;
     try { items = evaluate(c, o, ctx); } catch (e) { items = [{ desc: '判定処理', pass: false, actual: '例外：' + e.message, missing: true }]; }
     if (health && !blocked) items.push(...healthItems(health[c.id]));
+    items.push(...visualItems(visual, c.id));
     const info = run.info?.[c.id] ?? {};
     for (const h of info.healed ?? []) items.push({ desc: `AI で代替操作：${h.kind}「${h.prompt}」`, auto: true, warn: true, pass: true, expected: '辞書のロケーターで操作', actual: h.error });
     const hard = items.filter(i => !i.ai && !i.warn); const failed = hard.filter(i => !i.pass); const aiItems = items.filter(i => i.ai);
@@ -204,10 +211,18 @@ async function runPlaywright(site, s, flags) {
   const { runSuite } = await import('./engine-playwright.mjs');
   const OUT = site.out; const lines = [];
   const r = await runSuite(s, { site, outFile: OUT + `out/${s.file}.json`, shotsDir: OUT + `out/shots/${s.file}`, traceFile: OUT + `out/${s.file}-trace.zip`,
-    aiAssert: flags.aiAssert, heal: flags.heal, agentFactory: site.agentFactory, log: l => { lines.push(l); console.log(l); } });
+    aiAssert: flags.aiAssert, heal: flags.heal, visual: flags.visual, agentFactory: site.agentFactory, log: l => { lines.push(l); console.log(l); } });
   fs.writeFileSync(OUT + `out/${s.file}.log`, lines.concat(r.errors).join('\n') + '\n');
   const hFile = OUT + `out/${s.file}-health.json`;
   if (r.health) fs.writeFileSync(hFile, JSON.stringify(r.health, null, 1)); else fs.rmSync(hFile, { force: true });
+  // 見た目の比較：基準はサイトの tests/visual-baseline/（端末ごと。初回は登録だけ行う）
+  const vFile = OUT + `out/${s.file}-visual.json`;
+  if (flags.visual) {
+    const v = compareVisual(r.shots, { baselineDir: site.dir + 'visual-baseline', diffDir: OUT + 'out/visual', threshold: site.visual?.threshold, update: flags.updateVisual });
+    fs.writeFileSync(vFile, JSON.stringify(v, null, 1));
+    const n = st => v.filter(x => x.status === st).length;
+    console.log(`  見た目の比較：同じ ${n('same')}、違い ${n('changed')}` + (n('new') ? `、基準を新規登録 ${n('new')}` : '') + (n('updated') ? `、基準を更新 ${n('updated')}` : ''));
+  } else fs.rmSync(vFile, { force: true });
   return { report: OUT + `out/${s.file}-trace.zip`, shots: OUT + `out/shots/${s.file}/manifest.json`, tasks: r.tasks, info: r.info, error: r.errors.slice(0, 5) };
 }
 
@@ -220,6 +235,12 @@ function extractEvidence(OUT, SUITES, runs) {
       for (const { caseId, label, file: src } of JSON.parse(fs.readFileSync(mf, 'utf8'))) {
         if (!fs.existsSync(src)) continue;
         const file = 'evidence/' + path.basename(src); fs.copyFileSync(src, OUT + file); (ev[caseId] ??= []).push({ label, file });
+      }
+      // 見た目の比較で違いがあった画面は、差分の画像も証跡に加える
+      const vFile = OUT + `out/${s.file}-visual.json`;
+      for (const v of fs.existsSync(vFile) ? JSON.parse(fs.readFileSync(vFile, 'utf8')) : []) {
+        if (!v.diff || !fs.existsSync(v.diff)) continue;
+        const file = 'evidence/' + path.basename(v.diff); fs.copyFileSync(v.diff, OUT + file); (ev[v.caseId] ??= []).push({ label: `見た目の差分：${v.label}`, file });
       }
       continue;
     }

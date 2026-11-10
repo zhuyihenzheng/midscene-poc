@@ -108,3 +108,27 @@ test('辞書に未登録の指示文・ケース定義の誤りは、ブラウ�
   await assert.rejects(run(makeSite(fx.url, one([{ goto: '/' }, state('Z99')]))), /ケース定義に 1 件の誤り/);
   await assert.rejects(run(makeSite(fx.url, one([{ goto: '/' }, state('Z01')])), '--only', '99-none'), /存在しないスイート/);
 });
+
+test('--visual：初回は基準を登録し、見た目が変わると注意と差分の画像を出す。--update-visual で取り込む', async () => {
+  const suites = [{ file: '01-look', title: '見た目', cases: [
+    { ...base, id: 'V-01', title: 'お知らせの表示', flow: [...go('/styled', '見た目'), state('V01'), shot('V-01 お知らせ')], verify: [['見出し', 'V01.title', '見た目']] }] }];
+  // 時刻のように毎回変わる要素は mask で比較から外す
+  const site = makeSite(fx.url, suites, { visual: { mask: ['#clock'] } });
+  const first = await run(site, '--visual');
+  assert.ok(fs.existsSync(site.dir + 'visual-baseline/V-01_1_お知らせ.png'));
+  assert.deepEqual([first.summary.visualDiff, first.summary.warnings], [[], 0]);
+  const same = await run(site, '--visual');
+  assert.deepEqual(same.summary.visualDiff, []);
+
+  fx.look.color = '#b91c1c'; // DOM の値は同じまま、色だけが変わる
+  const changed = await run(site, '--visual');
+  assert.deepEqual([changed.summary.cases[0].verdict, changed.summary.visualDiff, changed.exitCode], ['OK', ['V-01'], 0]);
+  assert.match(changed.results[0].items.find(i => i.visual).actual, /違う画素 \d+\.\d+%/);
+  assert.ok(fs.existsSync(site.dir + 'evidence/V-01_1_お知らせ-diff.png'));
+  assert.match(fs.readFileSync(site.dir + 'report.html', 'utf8'), /data:image\/png;base64,/);
+
+  const updated = await run(site, '--update-visual');
+  assert.deepEqual(updated.summary.visualDiff, []);
+  assert.deepEqual((await run(site, '--visual')).summary.visualDiff, []);
+  fx.look.color = '#1d4ed8';
+});

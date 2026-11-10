@@ -5,7 +5,7 @@ import { createLocators, DEFAULTS } from '../../core/locators.mjs';
 const page = (title, body) => `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title></head><body><main><h1>${title}</h1>${body}</main></body></html>`;
 
 export async function startFixture() {
-  let flaky = 0;
+  let flaky = 0; const look = { color: '#1d4ed8' };
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const html = (s, status = 200) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' }); res.end(s); };
@@ -19,12 +19,13 @@ export async function startFixture() {
       case '/wide': return html(page('横長', `<div style="width:3000px">横に長い表</div><input name="memo">`));
       case '/renamed': return html(page('編集', `<form action="/saved"><button type="submit">登録</button></form>`));
       case '/flaky': return html(page(++flaky === 1 ? '準備中' : '安定', '<p>本文</p>'));
+      case '/styled': return html(page('見た目', `<p style="background:${look.color};color:#fff;padding:40px">お知らせ</p><p id="clock">${Date.now()}</p>`));
       case '/loading': return html(page('読込', `<p id="l">読み込み中</p><script>setTimeout(() => document.getElementById('l').remove(), 300);</script>`));
       default: return html(page('エラー', '<p>見つかりません。</p>'), 404);
     }
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
-  return { url: `http://127.0.0.1:${server.address().port}/`, close: () => new Promise(r => server.close(r)) };
+  return { url: `http://127.0.0.1:${server.address().port}/`, look, close: () => new Promise(r => server.close(r)) };
 }
 
 // 結果の出力先を一時ディレクトリにしたサイト設定
