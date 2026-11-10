@@ -1,54 +1,117 @@
 ---
 applyTo: "sites/**/tests/**"
-description: "Contract for writing site test files (site.mjs, cases.mjs, locators.mjs) for the core/ runner: case shape, step vocabulary, prompt wording, checks."
+description: "Contract for writing site test files (site.mjs, cases.mjs, locators.mjs) for the core/ runner: case shape, step vocabulary, prompt wording, checks, verdicts."
 ---
 
 # Writing site tests
 
-A site's tests live in `sites/<name>/tests/`. `cases.mjs` is the single source for the test specification (`試験仕様書.xlsx`), the Midscene YAML, the Playwright run, and the verdicts. `sites/coupon-demo/tests/` is the reference implementation, so copy its patterns. `core/runner.mjs` documents every `site.mjs` field in its header comment.
+A site's tests live in `sites/<name>/tests/`. `cases.mjs` is the single source for the test specification (`試験仕様書.xlsx`), the Midscene YAML, the Playwright run, and the verdicts. `sites/coupon-demo/tests/` is the reference implementation, so copy its patterns. `core/runner.mjs` documents every `site.mjs` field and every runner option in its header comment.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `site.mjs` | `export default { name, dir, url, viewport, cookieFile, login, locators, ... }`. Optional fields: `startApp`, `beforeSuite`/`afterSuite`, `emptyJournal`, `explore.flows`, `report` |
+| `site.mjs` | `export default { name, dir, url, viewport, cookieFile, login, locators, ... }`. Optional fields: `design`, `startApp`, `beforeSuite`/`afterSuite`, `emptyJournal`, `settle`, `health`, `explore.flows`, `report` |
 | `cases.mjs` | `export const SUITES = [...]` |
-| `run.mjs` | `await runTests({ ...site, suites: SUITES })` (3 lines, copy from coupon-demo) |
+| `run.mjs` | `await runTests({ ...site, suites: SUITES })` (3 lines) |
+| `baseline.json` | Known NG cases. Written by `run.mjs --update-baseline`; a human adds the `note` (ticket number, reason) |
 | `locators.mjs` | Only when the inventory lists 解決できなかった候補: site patterns placed before `DEFAULTS` (see *Site dictionary* below) |
-| `観点表.md` | Coverage table: design-document item → case IDs |
+| `観点表.md` | Coverage table written for human review: design-document item → case IDs |
 
-`login(browser, { viewport })` returns `{ context, page }`. It reads credentials from `process.env` inside the function, and every new key goes into `.env.example` with an empty value.
+`node core/new-site.mjs <name> --url <start URL>` creates `site.mjs`, `run.mjs`, and `cases.mjs` from a template.
+
+In `site.mjs`, build paths with `here(import.meta.url)` from `core/paths.mjs` (never `new URL(...).pathname`, which breaks on Windows). `login(browser, { viewport })` returns `{ context, page }`. It reads credentials from `process.env` inside the function, and every new key goes into `.env.example` with an empty value. Set `design` to the design document's path so the runner can check coverage.
 
 ## Suite and case shape
 
 ```js
+import { makeState, go, shot } from '../../../core/steps.mjs';
+import { AI, absent, count, includes, partial } from '../../../core/check.mjs';
+const state = makeState({ extra: { balance: '#balance' } });
+
 { file: '03-input', title: 'S04 クーポン交換（入力チェック）', cases: [
   { id: 'E-04', screen: 'S04 クーポン交換', kind: '必須チェック', title: '未入力のまま〈確認〉',
-    steps: '1. 何も入力せず〈確認〉', expect: '枚数の下に「枚数を入力してください。」。',
+    steps: '1. 何も入力せず〈確認〉', expect: '枚数の下に「枚数を入力してください。」。交換画面のまま。',
     flow: [...go('/coupons/1/exchange', 'クーポン交換'), { aiTap: '「確認」ボタン' },
       { aiWaitFor: '「枚数を入力してください。」と表示されている', timeout: 15000 }, state('E04'), shot('E-04 必須エラー')],
-    check: o => { const e = o.E04?.errors ?? {}; return [
-      ['枚数の必須エラー', e.qty === '枚数を入力してください。', e.qty]]; } },
+    verify: [
+      ['枚数の必須エラー', 'E04.errors.qty', '枚数を入力してください。'],
+      ['交換画面のまま', 'E04.title', 'クーポン交換']] },
 ] }
 ```
 
-- `file`: `NN-purpose`, a stable 2-digit prefix. `id`: `<letter>-NN`, stable once written, because results refer to it.
-- `screen`, `kind`, `title`, `steps`, and `expect` are written in Japanese and appear verbatim in `試験仕様書.xlsx`. `expect` states the concrete values from the design document: exact message text, formats such as `1,200 pt`, and counts.
-- Cases in a suite run in order on one page, and a failing case stops at that case while the next case still runs. Each case either opens its start screen with `go()`, or says in `steps` that it continues from the previous case, as in `（L-03 の続き）`.
+- `file`: `NN-purpose`, a stable 2-digit prefix. `id`: uppercase letters, a hyphen, digits (`E-04`); stable once written, because results, evidence files, and `baseline.json` refer to it.
+- `screen`, `kind`, `title`, `steps`, and `expect` are written in Japanese and appear verbatim in `試験仕様書.xlsx`. Put the design document's screen ID in `screen` (`S04 クーポン交換`, `S05→S06`); the coverage report matches on it. `expect` states the concrete values from the design document: exact message text, formats such as `1,200 pt`, and counts.
+- Cases in a suite run in order on one page. A case whose `flow` starts with `go()` is independent. A case whose `flow` does not start with `go()` continues from the previous case's screen; say so in `steps`, as in `（L-03 の続き）`. When a case fails to execute, the cases that continue from it are reported as ブロック and are not run, and the next independent case runs normally.
 
 ## Step vocabulary (`flow`)
 
 | Step | Use |
 |---|---|
-| `{ javascript: STATE, name: 'X01' }` | Record DOM values into `o.X01` for `check`. Write it with the `state('X01')` helper |
+| `...go('/path', '画面名')` | Open a URL (relative to `site.url`) and wait for the `h1`. Becomes `page.goto` in Playwright and `javascript` + `sleep` in the Midscene YAML |
+| `state('X01')` | Record the page state into `X01` for `verify`. From `makeState()` |
 | `{ aiTap: '<prompt>' }` | Click |
-| `{ aiInput: '<prompt>', value: '...' }` | Clear and type |
-| `{ aiWaitFor: '<prompt>', timeout: 15000 }` | Wait until a screen or message appears |
-| `{ aiAssert: '<prompt>', name: 'X01_ai' }` | AI visual judgement, for reference only. Feed it to `check` through `ai(o.X01_ai)` |
-| `{ sleep: ms }` | Only inside `go()` |
-| `{ recordToReport: '<ID 説明>' }` | Evidence screenshot. Write it with the `shot()` helper |
+| `{ aiHover: '<prompt>' }` | Hover (resolved with the `aiTap` dictionary) |
+| `{ aiInput: '<prompt>', value: '...' }` | Clear and type. When the target is a `select`, `value` is the option's visible text |
+| `{ aiKeyboardPress: 'Enter' }` | Press a key |
+| `{ aiWaitFor: '<prompt>', timeout: 15000 }` | Wait until a screen or message appears (or disappears) |
+| `{ aiAssert: '<prompt>', name: 'X01_ai' }` | AI visual judgement, for reference only. Verify it with `['AI：…', 'X01_ai', AI]` |
+| `{ sleep: ms }` | Only when a value must be recorded before a wait that may fail (see B-03 in coupon-demo) |
+| `shot('<ID 説明>')` | Evidence screenshot. The label starts with the case ID |
 
-Copy the `go`, `state`, and `shot` helpers from `sites/coupon-demo/tests/cases.mjs`.
+`{ javascript: '…', name: 'X01' }` is available for values `state()` does not cover. Every recorded `name` is unique within a suite.
+
+## Recorded page state
+
+`state('X01')` records one object. Read the paths below in `verify`:
+
+| Path | Value |
+|---|---|
+| `X01.title` / `X01.path` | `h1` text / URL path |
+| `X01.fields.<id or name>` | `{ value, visible, disabled, readonly, invalid, text }` for inputs, textareas, and selects (`text` is the selected option's label) |
+| `X01.checks.<id or name>` / `X01.radios.<name>` | checkbox state / checked radio value (or `null`) |
+| `X01.errors.<field>` | visible field error text. The key is the error element's `id` without `-error`, or the field that points to it with `aria-describedby` |
+| `X01.alert` / `X01.status` | first visible `[role=alert]` / `[role=status]` text, or `null` |
+| `X01.dl.<dt text>` | the matching `dd` text |
+| `X01.headers` / `X01.table` / `X01.caption` | table header texts / body rows as arrays of cell texts / caption |
+| `X01.rows.<first cell text>` | that row's cells. `X01.rowActions.<first cell text>` lists the row's link and button texts |
+| `X01.text` | visible text of `main` (or `body`), for `includes('…')` |
+| `X01.buttons` / `X01.links` | visible button / link texts |
+
+Pass site-specific selectors to `makeState({ errorSelector, alertSelector, statusSelector, extra: { name: '<css selector>' } })`. An `extra` entry appears at the top level (`X01.balance`). Take the selectors from the inventory's メッセージ and 入力項目 lines.
+
+## Checks
+
+`verify` is a list of `[観点, path, expected]`. The path's first segment is a recorded name, or `journal` for what `site.afterSuite` returned (backend requests or the ledger). Use an array path when a key contains a dot.
+
+`expected` is a literal (strings, numbers, arrays, and objects compare for exact equality) or a matcher from `core/check.mjs`:
+
+| Matcher | Passes when |
+|---|---|
+| `absent` / `present` | the value is empty (`undefined`, `null`, `''`, `false`) / not empty |
+| `count(n)` | the array or object has `n` entries |
+| `includes('…')` | the string or array contains it |
+| `matches(/…/)` | the string matches |
+| `partial({ … })` | the listed keys match; other keys are ignored |
+| `every(x)` / `not(x)` / `oneOf(a, b)` | every element matches / the value does not match / the value matches one of them |
+| `AI` | the `aiAssert` result is OK (reference only; 未実施 in Playwright mode) |
+
+For logic that does not fit, add `check: (o, ctx) => [[観点, pass, actual], ...]` beside or instead of `verify`. `o` is the suite's recorded values and `ctx.journal` the journal.
+
+Read every expected value from the design document; the current page is only the source for where to read a value. `--build-only` lists message-like expected values that do not appear in the design document (設計書に根拠のない期待値); fix those by checking the design document, never by trusting the page.
+
+## Verdicts
+
+| Verdict | Meaning | What to do |
+|---|---|---|
+| OK | every non-AI check passed and the flow ran to the end | — |
+| NG（不一致） | a value was read and differs from the expected value | Suspected defect. A draft is written to `不具合票ドラフト.md` |
+| NG（実行不能） | the flow could not run, so values are missing | Test fault or changed screen: fix the flow, the dictionary, or the wait |
+| ブロック | the case continues from a case that failed to execute | Resolve the earlier case, then re-run |
+
+In Playwright mode every case also gets automatic checks (`core/health.mjs`): an uncaught JS exception, an HTTP 5xx response, a broken image, or visible `undefined` / `NaN` / `[object Object]` text makes the case NG; horizontal overflow, clipped text, unlabeled inputs, duplicate ids, `console.error`, and same-origin 4xx responses are listed as 注意 without changing the verdict. Exclude a known false positive with `site.health = { ignore: [/regex on "種別：内容"/] }`.
+
+`baseline.json` holds the known NG cases. The runner exits with code 1 only for results that differ from it (新規NG, NG内容の変化). Never add a case to the baseline to make a run pass: a human decides that a failure is a known defect and writes the `note`.
 
 ## Prompt wording
 
@@ -60,13 +123,16 @@ In Playwright mode, `core/locators.mjs` `DEFAULTS` resolves prompts by regex, so
 | aiTap | `画面下部の「戻る」ボタン` | last of several same-named buttons |
 | aiTap | `「カフェ 200円引き」の行の「交換する」リンク` | that element inside the table row containing the text |
 | aiTap | `受取方法の「メール」ラジオボタン` / `…チェックボックス` | option inside the `fieldset` whose `legend` is 受取方法 |
-| aiInput | `枚数の入力欄` | field whose label is exactly 枚数 |
+| aiTap | `「同意する」チェックボックス` / `「明細」タブ` / `「設定」メニュー` | checkbox, radio, tab, or menu item with that exact name |
+| aiInput | `枚数の入力欄` / `都道府県の選択欄` | field whose label is exactly that text |
+| aiInput | `「山田 太郎」の行の数量の入力欄` | labeled field inside that table row |
 | aiWaitFor | `「クーポン交換」画面が表示されている` | `h1` with that exact text |
 | aiWaitFor | `「枚数を入力してください。」と表示されている` | visible text |
+| aiWaitFor | `「読み込み中」が表示されていない` | waits until the text is gone |
 
 ## Site dictionary
 
-Use a site dictionary when a screen lacks labels, `fieldset`/`legend`, or an `h1`. Each entry pairs a regex for one prompt wording with a function `(page, match) => Locator`. `aiWaitFor` entries may return a function instead of a Locator. The site table is checked first; anything it does not match falls through to `DEFAULTS`:
+Use a site dictionary when a screen lacks labels, `fieldset`/`legend`, or an `h1`. Each entry pairs a regex for one prompt wording with a function `(page, match) => Locator`. `aiWaitFor` entries may also return a function (a condition evaluated in the page) or `{ locator, state: 'hidden' }`. The site table is checked first; anything it does not match falls through to `DEFAULTS`:
 
 ```js
 // sites/<name>/tests/locators.mjs
@@ -80,27 +146,6 @@ export const locators = createLocators(SITE, DEFAULTS);
 
 Use this file's `locators` as `site.locators`. Keep the prompt wording in the same 「…」 style so Midscene reads it naturally.
 
-## Snapshot function (`pageState`)
+## Before running
 
-Every site needs its own `pageState()` in `cases.mjs`, because selectors differ between sites. Build it from the inventory:
-
-- input `id`s from the 入力項目 table, giving `fields[id].value` and `visible`;
-- radio `name`s, giving the checked value;
-- the selector of each message, shown as `` `#qty-error` `` or `` `[role=alert]` `` on the メッセージ lines;
-- `dl` label/value pairs (the 表示項目 lines);
-- table rows;
-- the `h1` text.
-
-When the inventory lacks a value the design document expects, read the app's templates (if they are in the workspace), or add a `explore.flows` entry and re-run the explorer.
-
-## Checks
-
-`check(o, ctx)` returns `[[観点, pass, actual], ...]`.
-
-- `o` is the suite's recorded values.
-- `ctx.journal` is what `site.afterSuite` returned: backend requests or the ledger.
-- `pass` is a boolean computed from recorded DOM values or journal entries, compared with design-document values.
-- `actual` is the value shown in the result sheet when the check fails.
-- Use `eq` and `eqObj` from `core/check.mjs` for arrays and objects.
-
-A case is OK when it has at least one non-AI check and all of them pass. `['AI：…', ai(o.X01_ai)]` rows are informational. Read every expected value from the design document; the current page is only the source for where to read a value.
+`node sites/<name>/tests/run.mjs --engine playwright --build-only` needs no browser. It must print `ロケーター辞書：全指示文を解決可` and report no ケース定義の誤り (duplicate IDs, a `verify` path whose name no step records, an evidence label without the case ID, a case without checks). With `site.design` set, it also writes `観点カバレッジ.md`: design-document screens and messages without a case, and expected values without a basis in the design document.

@@ -1,6 +1,6 @@
 # 新网站测试指南
 
-本文说明怎样为一个新网站建立画面测试：要准备什么、怎么生成用例、哪些交给 GitHub Copilot、哪些必须由人来做。完整示例是 `sites/coupon-demo/`，包括设计书、站点配置、21 个用例，以及一个故意埋入的缺陷。
+本文说明怎样为一个新网站建立画面测试：要准备什么、怎么生成用例、哪些交给 GitHub Copilot、哪些必须由人来做。完整示例是 `sites/coupon-demo/`，包括设计书、站点配置、23 个用例，以及一个故意埋入的缺陷。
 
 ## 总体流程
 
@@ -10,8 +10,8 @@
 | 1. 站点配置 `site.mjs` | Copilot 起草，人确认登录 | `sites/<name>/tests/site.mjs`、`run.mjs` |
 | 2. 画面采集 | 脚本自动 | `inventory/inventory.md`（画面、输入项、按钮、消息、已验证的指示文） |
 | 3. 观点表 | Copilot 起草，**人审查** | `観点表.md`（设计书条目对应到用例 ID） |
-| 4. 用例 `cases.mjs` | Copilot | `試験仕様書.xlsx`、YAML |
-| 5. 执行与分类 | Copilot 执行，**人判断缺陷** | `試験結果.xlsx`、`結果一覧.md`、证跡截图 |
+| 4. 用例 `cases.mjs` | Copilot | `試験仕様書.xlsx`、YAML、`観点カバレッジ.md` |
+| 5. 执行与分类 | Copilot 执行，**人判断缺陷** | `report.html`、`試験結果.xlsx`、`結果一覧.md`、`不具合票ドラフト.md`、证跡截图 |
 
 第 3 步和第 5 步是人必须参与的两个关卡。Copilot 会在第 3 步停下来，等你审查观点表。
 
@@ -38,16 +38,37 @@
 以下命令都在仓库根目录执行：
 
 ```bash
+node core/new-site.mjs <name> --url <起始URL>                         # 1. 生成 site.mjs / run.mjs / cases.mjs 模板
 node core/explore.mjs sites/<name>/tests/site.mjs                     # 2. 画面采集
-node sites/<name>/tests/run.mjs --engine playwright --build-only     # 4. 生成仕様書・YAML，检查指示文能否全部解析
+node sites/<name>/tests/run.mjs --engine playwright --build-only     # 4. 检查用例写法，生成仕様書・YAML・観点カバレッジ
 node sites/<name>/tests/run.mjs --engine playwright                  # 5. 执行（不需要模型）
 node sites/<name>/tests/run.mjs --engine playwright --only 03-input  # 只重跑一个 suite
-node sites/<name>/tests/run.mjs --engine midscene                    # 有本地模型时：用 AI 操作跑一遍
+node sites/<name>/tests/run.mjs --update-baseline --eval-only        # 把确认过的 NG 登记为已知
+node sites/<name>/tests/run.mjs --engine midscene                    # 有模型时：用 AI 操作跑一遍
 ```
 
-`--build-only` 要加上 `--engine playwright`。原因是 midscene 模式下，遇到未登录的指示文只会提示；playwright 模式下才会报错退出。`--build-only` 的成功标志是输出 `ロケーター辞書：全指示文を解決可`。
+`--build-only` 不开浏览器，会检查三件事：
+
+- 用例写法：ID 重复、`verify` 引用了没有记录的名字、证跡标签没带用例 ID、用例没有判定；
+- 辞典：所有指示文能否解析。成功标志是输出 `ロケーター辞書：全指示文を解決可`；
+- 覆盖率（`site.mjs` 里设置了 `design` 时）：生成 `観点カバレッジ.md`，列出设计书里没有对应用例的画面和消息，以及"设计书里找不到依据的期待值"。
+
+`--build-only` 要加上 `--engine playwright`：midscene 模式下，遇到未登录的指示文只会提示；playwright 模式下才会报错退出。
 
 画面采集只能沿着链接（GET）进入画面。确认画面、完成画面、错误状态这类需要操作才能到达的画面，要在 `site.mjs` 的 `explore.flows` 里写好操作步骤再采集，写法参照 coupon-demo。
+
+## 结果怎么看
+
+执行后先看 `report.html`（或 `結果一覧.md`）。命令的结束代码只反映"和基准相比有没有意外"：
+
+| 判定 | 含义 | 谁来处理 |
+|---|---|---|
+| NG（不一致） | 读到了值，但和设计书不同 | 人确认后起票。`不具合票ドラフト.md` 里有草稿 |
+| NG（実行不能） | 操作不了，没读到值 | Copilot 或人修用例、辞典、等待条件 |
+| ブロック | 前一个用例中断，没有执行 | 先解决前一个 |
+| 注意 | 自动检查的提示（横向滚动条、文字截断、没有 label 的输入框） | 人判断要不要报给开发 |
+
+确认是已知缺陷后，执行 `--update-baseline` 把它登记到 `baseline.json`，并在 `note` 里写票号。之后这个用例显示为"既知NG"，不会让命令失败；缺陷修好后会显示"解消"，提醒你更新基准。**基准只能由人来更新**，不能为了让结果变绿而登记。
 
 ## 用 Copilot 自动生成用例
 
@@ -73,8 +94,8 @@ Copilot 会按 `.github/prompts/new-site-tests.prompt.md` 的顺序工作：
 1. 写 `site.mjs`；
 2. 运行采集；
 3. 写观点表，然后**停下来等你审查**；
-4. 写 `cases.mjs`；
-5. 执行，并把 NG 分成"测试本身的问题"和"疑似缺陷"两类；
+4. 写 `cases.mjs`，并用 `--build-only` 检查写法和覆盖率；
+5. 执行，修掉"実行不能"和"ブロック"（测试本身的问题），留下"不一致"（疑似缺陷）；
 6. 汇报结果。
 
 ### 给 Copilot 的文件
@@ -90,7 +111,7 @@ Copilot 会按 `.github/prompts/new-site-tests.prompt.md` 的顺序工作：
 
 **第 3 步（观点表）**
 
-- 设计书的每条消息、每个边界值、每条业务规则是否都有对应的用例 ID；
+- 设计书的每条消息、每个边界值、每条业务规则是否都有对应的用例 ID（画面和消息可以对照自动生成的 `観点カバレッジ.md`，业务规则和边界值只能靠人看）；
 - 标为"不测"的项目，理由是否站得住。
 
 **第 4 步（試験仕様書.xlsx）**
@@ -100,7 +121,7 @@ Copilot 会按 `.github/prompts/new-site-tests.prompt.md` 的顺序工作：
 **第 5 步（試験結果.xlsx）**
 
 - 对 Copilot 标为"疑似缺陷"的用例，看证跡截图，确认是应用的问题；
-- Copilot **不能**为了让用例变成 OK 去改期待值。如果发现它这样做了，直接退回。
+- Copilot **不能**为了让用例变成 OK 去改期待值、往 `baseline.json` 里加用例、或者加 `health.ignore`。如果发现它这样做了，直接退回。
 
 ## Copilot 做不到或做不好的事
 

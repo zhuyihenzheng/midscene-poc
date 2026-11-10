@@ -6,13 +6,14 @@
 //   各画面の「指示文候補」は標準辞書（core/locators.mjs の DEFAULTS）の書き方で生成し、実画面で 1 要素に解決できたものだけ載せる
 // 注意：リンク（GET）でたどれる画面だけを採取する。フォーム送信後の画面（確認・完了など）は site.explore.flows で操作を指定するか、
 //      Midscene（AI）での初回実行の画面証跡から補う。
-import fs from 'fs'; import path from 'path';
+import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url';
 import { launch } from './browser.mjs';
 import { createLocators, DEFAULTS, KINDS } from './locators.mjs';
 
 const args = process.argv.slice(2);
 const siteFile = path.resolve(args[0] ?? '');
-const site = (await import(siteFile)).default;
+if (!args[0] || !fs.existsSync(siteFile)) { console.error('使い方：node core/explore.mjs sites/<name>/tests/site.mjs [--max 30] [--out <dir>]'); process.exit(1); }
+const site = (await import(pathToFileURL(siteFile).href)).default; // Windows の絶対パスは file:// URL にしないと import できない
 const max = Number(args.includes('--max') ? args[args.indexOf('--max') + 1] : 30);
 const outDir = args.includes('--out') ? path.resolve(args[args.indexOf('--out') + 1]) : path.join(path.dirname(siteFile), 'inventory');
 const loc = site.locators ?? createLocators(DEFAULTS);
@@ -88,7 +89,7 @@ function collect(page) {
 async function prompts(page, inv) {
   const cand = [];
   if (inv.h1) cand.push(['aiWaitFor', `「${inv.h1}」画面が表示されている`]);
-  for (const f of inv.fields) if (f.label) cand.push(['aiInput', `${f.label}の入力欄`]);
+  for (const f of inv.fields) if (f.label) cand.push(['aiInput', `${f.label}の${f.type === 'select' ? '選択欄' : '入力欄'}`]);
   for (const g of inv.groups) for (const o of g.options) cand.push(['aiTap', `${g.group}の「${o.label}」${g.type === 'radio' ? 'ラジオボタン' : 'チェックボックス'}`]);
   for (const b of new Set(inv.buttons)) if (b) cand.push(['aiTap', `「${b}」ボタン`]);
   const rowLinks = new Set();

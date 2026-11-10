@@ -1,10 +1,15 @@
 {
   "name": "midscene-poc",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Browser screen-testing framework on Midscene and Playwright",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/unit.test.mjs test/engine.test.mjs test/demo.test.mjs",
+    "test:unit": "node --test test/unit.test.mjs",
+    "demo": "node sites/coupon-demo/tests/run.mjs --engine playwright",
+    "demo:fixed": "node sites/coupon-demo/tests/run-fixed.mjs",
+    "build": "node sites/coupon-demo/tests/run.mjs --engine playwright --build-only",
+    "explore": "node core/explore.mjs",
+    "new-site": "node core/new-site.mjs"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +22,11 @@
     "playwright": "^1.64.0"
   },
   "dependencies": {
-    "exceljs": "^4.4.0"
+    "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
