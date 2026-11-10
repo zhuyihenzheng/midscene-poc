@@ -37,7 +37,7 @@ export function lintPage() {
 
 // ページのイベントを監視し、現在のケースに検出を積む。戻り値：{ setCase, lint, result }
 export function watch(page, site) {
-  if (site.health === false) return { setCase() {}, async lint() {}, note() {}, result: () => null };
+  if (site.health === false) return { setCase() {}, async lint() {}, note() {}, attach() {}, result: () => null };
   const ignore = site.health?.ignore ?? [];
   const origin = new URL(site.url).origin;
   const found = {}; let current = null;
@@ -48,17 +48,22 @@ export function watch(page, site) {
     const list = (found[current] ??= []);
     if (!list.some(f => f.kind === kind && f.detail === detail)) list.push({ level, kind, detail });
   };
-  page.on('pageerror', e => add('error', 'JS の例外', e.message));
-  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) add('warn', 'console.error', m.text()); });
-  page.on('response', r => {
-    const s = r.status(); const u = r.url();
-    if (s >= 500) add('error', 'HTTP 5xx', `${s} ${r.request().method()} ${u}`);
-    else if (s >= 400 && u.startsWith(origin) && r.request().resourceType() !== 'document') add('warn', 'HTTP 4xx（部品）', `${s} ${u}`);
-  });
+  // 別ウィンドウ（ポップアップ）が開いたら、そのページも同じように監視する
+  const attach = p => {
+    p.on('pageerror', e => add('error', 'JS の例外', e.message));
+    p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) add('warn', 'console.error', m.text()); });
+    p.on('response', r => {
+      const s = r.status(); const u = r.url();
+      if (s >= 500) add('error', 'HTTP 5xx', `${s} ${r.request().method()} ${u}`);
+      else if (s >= 400 && u.startsWith(origin) && r.request().resourceType() !== 'document') add('warn', 'HTTP 4xx（部品）', `${s} ${u}`);
+    });
+  };
+  attach(page);
   return {
     setCase(id) { current = id; if (id) found[id] ??= []; },
     note: add,
-    async lint() { for (const f of await page.evaluate(lintPage).catch(() => [])) add(f.level, f.kind, f.detail); },
+    async lint(p = page) { for (const f of await p.evaluate(lintPage).catch(() => [])) add(f.level, f.kind, f.detail); },
+    attach,
     result: () => found,
   };
 }

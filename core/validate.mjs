@@ -1,7 +1,7 @@
 // ケース定義の静的検査（--build-only で実行。ブラウザ不要）。書き間違いを実行前に見つける。
 import { KINDS } from './locators.mjs';
 
-const STEP_KEYS = ['goto', 'javascript', 'sleep', 'aiKeyboardPress', 'aiAssert', 'recordToReport', ...KINDS];
+const STEP_KEYS = ['goto', 'javascript', 'sleep', 'aiKeyboardPress', 'aiAssert', 'recordToReport', 'upload', 'download', ...KINDS];
 
 export function validateCases(SUITES) {
   const out = []; const ids = new Set(); const files = new Set();
@@ -21,7 +21,8 @@ export function validateCases(SUITES) {
         if (!key) { out.push(`${at}：flow[${i}] は未対応のステップ ${JSON.stringify(st).slice(0, 60)}`); continue; }
         if (key === 'aiInput' && st.value === undefined) out.push(`${at}：flow[${i}] aiInput に value がない`);
         if (key === 'recordToReport' && st.recordToReport.split(' ')[0] !== c.id) out.push(`${at}：証跡ラベル「${st.recordToReport}」はケース ID で始める（例「${c.id} 説明」）`);
-        if ((key === 'javascript' || key === 'aiAssert') && st.name) {
+        if (key === 'upload' && !st.file) out.push(`${at}：flow[${i}] upload に file がない`);
+        if ((key === 'javascript' || key === 'aiAssert' || key === 'download') && st.name) {
           if (names.has(st.name)) out.push(`${at}：記録名 ${st.name} がスイート内で重複（前の値を上書きする）`);
           names.add(st.name);
         }

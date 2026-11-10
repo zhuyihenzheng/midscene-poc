@@ -11,6 +11,7 @@
 //   --heal                        playwright エンジンで、辞書で操作できなかったステップを AI で代替する（要モデル）
 //   --visual                      playwright エンジンで、証跡の画面を基準の画像（visual-baseline/）と比べ、違いを「注意」に載せる
 //   --update-visual               今回の画面を見た目の基準として保存する（--visual を含む）
+//   --workers N                   スイートを N 並列で実行する（playwright エンジンで、site.parallel = true のサイトだけ）
 //   --update-baseline             今回の結果を baseline.json（既知の NG）として保存する
 //   --strict                      基準で NG のケースが OK になった場合も終了コード 1 にする
 //   --results <dir>               生成物（YAML・out・evidence・結果）の出力先を変える（既定はサイトの tests/）
@@ -27,6 +28,7 @@
 //   afterSuite(s, state) → journal  任意：スイート後処理。戻り値は out/<スイート>-journal.json に保存し、判定の journal になる
 //   emptyJournal              journal がないときの値
 //   settle(page)              任意：操作後の待ち（既定は読み込み完了＋通信の静止）
+//   parallel                  任意：true でスイートの並列実行（--workers）を許可する。スイートどうしがデータを共有しないサイトだけ
 //   dialogs                   任意：true で alert / confirm / prompt の文言を記録し、答えを指定できるようにする（core/steps.mjs）
 //   state                     任意：makeState に渡す設定（titleSelector など）。画面採取（core/explore.mjs）も見出しの取得に使う
 //   health                    任意：自動検査の設定（false で無効、{ ignore: [/…/] } で除外）
@@ -45,7 +47,7 @@ import { writeCoverage } from './coverage.mjs';
 import { loadBaseline, compareBaseline, saveBaseline } from './baseline.mjs';
 import { writeSpec, writeResult, writeMd, writeHtml, writeJunit, writeBugDrafts } from './report.mjs';
 
-const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 19).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
+const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 20).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
 
 // setExitCode:false にすると process.exitCode を変えない（戻り値の exitCode だけを使う。フレームワーク自身の試験用）
 export async function runTests(site, args = process.argv.slice(2), { setExitCode = true } = {}) {
@@ -86,6 +88,8 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
     console.log(`観点カバレッジ：設計書の ${cov.total} 項目中 ${cov.covered} 項目にケースあり` + (cov.uncovered.length ? `（未対応 ${cov.uncovered.length}：${cov.uncovered.slice(0, 5).join('／')}${cov.uncovered.length > 5 ? ' ほか' : ''}）` : '')
       + (cov.unfounded.length ? `\n  設計書に根拠のない期待値 ${cov.unfounded.length} 件：${cov.unfounded.slice(0, 5).map(u => `${u.id}「${u.text}」`).join('／')}` : ''));
   }
+  const pwOnly = SUITES.flatMap(s => s.cases).filter(c => c.flow.some(st => 'upload' in st || 'download' in st)).map(c => c.id);
+  if (pwOnly.length && engine === 'midscene') console.log(`注意：upload / download は Playwright エンジン専用のステップです。Midscene では実行できないケース：${pwOnly.join(', ')}`);
   if (args.includes('--build-only')) return { results: [], exitCode: 0 };
 
   // ---------- 2. 実行 ----------
@@ -94,21 +98,32 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   if (!args.includes('--eval-only')) {
     const stopApp = site.startApp ? await site.startApp() : null;
     try {
-      for (const s of suites) {
-        console.log(`\n=== ${s.file} ${s.title}`);
+      // スイート 1 件を（必要ならやり直しつきで）実行する。print はログの出力先
+      const runSuite = async (s, print) => {
+        print(`\n=== ${s.file} ${s.title}`);
         const flaky = new Set();
         for (let attempt = 1; ; attempt++) {
-          runs[s.file] = { ...(await runOnce(site, s, engine, flags)), attempts: attempt };
+          runs[s.file] = { ...(await runOnce(site, s, engine, { ...flags, print })), attempts: attempt };
           const stuck = evaluateSuite(site, s, runs).filter(r => r.cause === '実行不能').map(r => r.c.id);
           if (!stuck.length || attempt > flags.retries) break;
           stuck.forEach(id => flaky.add(id));
-          console.log(`  実行不能 ${stuck.join(', ')} → スイートをやり直します（${attempt}/${flags.retries}）`);
+          print(`  実行不能 ${stuck.join(', ')} → スイートをやり直します（${attempt}/${flags.retries}）`);
         }
         // やり直しで通ったケースは「不安定」として結果に残す
         runs[s.file].flaky = [...flaky].filter(id => runs[s.file].tasks[id] === 'ok');
         fs.writeFileSync(runsFile, JSON.stringify(runs, null, 1));
-        console.log(`  [${engine}] ${runs[s.file].sec}s　${runs[s.file].engine === 'playwright' ? 'Trace' : 'レポート'}：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
-      }
+        print(`  [${engine}] ${runs[s.file].sec}s　${runs[s.file].engine === 'playwright' ? 'Trace' : 'レポート'}：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
+      };
+      // 並列実行（--workers N）：スイートどうしがデータを共有しないサイト（site.parallel = true）で、Playwright エンジンのときだけ行う。
+      // ログはスイートごとにまとめて出す
+      const workers = Math.max(1, Number(opt('--workers') ?? 1));
+      if (workers > 1 && !(site.parallel && engine === 'playwright')) console.log(`--workers ${workers} は使いません（${engine !== 'playwright' ? 'Playwright エンジン専用' : 'site.parallel = true のサイトだけ。スイートがデータを共有すると結果が変わるため'}）。順に実行します`);
+      if (workers > 1 && site.parallel && engine === 'playwright') {
+        const queue = [...suites];
+        await Promise.all(Array.from({ length: Math.min(workers, queue.length) }, async () => {
+          for (let s = queue.shift(); s; s = queue.shift()) { const lines = []; await runSuite(s, l => lines.push(l)); console.log(lines.join('\n')); }
+        }));
+      } else for (const s of suites) await runSuite(s, console.log);
     } finally { await stopApp?.(); }
   }
 
@@ -151,7 +166,7 @@ async function runOnce(site, s, engine, flags) {
   try { run = engine === 'playwright' ? await runPlaywright(site, s, flags) : await runMidscene(site, s); }
   catch (e) {
     const fatal = e.message.split('\n')[0];
-    console.error(`  ✖ スイートを実行できません：${fatal}`);
+    flags.print(`  ✖ スイートを実行できません：${fatal}`);
     fs.rmSync(site.out + `out/${s.file}.json`, { force: true });
     run = { report: null, tasks: Object.fromEntries(s.cases.map(c => [c.id, 'failed'])), info: Object.fromEntries(s.cases.map(c => [c.id, { error: fatal, healed: [] }])), error: [fatal], fatal };
   } finally { journal = site.afterSuite ? await Promise.resolve(site.afterSuite(s, state)).catch(() => undefined) : undefined; }
@@ -240,7 +255,7 @@ async function runPlaywright(site, s, flags) {
   const { runSuite } = await import('./engine-playwright.mjs');
   const OUT = site.out; const lines = [];
   const r = await runSuite(s, { site, outFile: OUT + `out/${s.file}.json`, shotsDir: OUT + `out/shots/${s.file}`, traceFile: OUT + `out/${s.file}-trace.zip`,
-    aiAssert: flags.aiAssert, heal: flags.heal, visual: flags.visual, agentFactory: site.agentFactory, log: l => { lines.push(l); console.log(l); } });
+    aiAssert: flags.aiAssert, heal: flags.heal, visual: flags.visual, agentFactory: site.agentFactory, downloadsDir: OUT + `out/downloads/${s.file}`, log: l => { lines.push(l); flags.print(l); } });
   fs.writeFileSync(OUT + `out/${s.file}.log`, lines.concat(r.errors).join('\n') + '\n');
   const hFile = OUT + `out/${s.file}-health.json`;
   if (r.health) fs.writeFileSync(hFile, JSON.stringify(r.health, null, 1)); else fs.rmSync(hFile, { force: true });
@@ -250,7 +265,7 @@ async function runPlaywright(site, s, flags) {
     const v = compareVisual(r.shots, { baselineDir: site.dir + 'visual-baseline', diffDir: OUT + 'out/visual', threshold: site.visual?.threshold, update: flags.updateVisual });
     fs.writeFileSync(vFile, JSON.stringify(v, null, 1));
     const n = st => v.filter(x => x.status === st).length;
-    console.log(`  見た目の比較：同じ ${n('same')}、違い ${n('changed')}` + (n('new') ? `、基準を新規登録 ${n('new')}` : '') + (n('updated') ? `、基準を更新 ${n('updated')}` : ''));
+    flags.print(`  見た目の比較：同じ ${n('same')}、違い ${n('changed')}` + (n('new') ? `、基準を新規登録 ${n('new')}` : '') + (n('updated') ? `、基準を更新 ${n('updated')}` : ''));
   } else fs.rmSync(vFile, { force: true });
   return { report: OUT + `out/${s.file}-trace.zip`, shots: OUT + `out/shots/${s.file}/manifest.json`, tasks: r.tasks, info: r.info, error: r.errors.slice(0, 5) };
 }

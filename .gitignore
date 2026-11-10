@@ -24,3 +24,6 @@ kmt/
 # 画面の証跡を埋め込んだレポート・CI 用の結果
 sites/*/tests/report.html
 .test-results/
+
+# エージェントをモデルにする中継サーバー（core/agent-model.mjs）の要求・画面
+.agent-model/

@@ -14,8 +14,12 @@
 //   table   一覧の表（見出し行を持つ最初の表）の各行のセル文言（配列）。rows は同じ内容を「先頭セルの文言」で引ける形にしたもの
 //   rowActions  { 先頭セルの文言: 行内のリンク・ボタンの文言の配列 }。rowLinks は行内にリンクがあるか（table と同じ順）
 //   text    本文（main、なければ body）の表示文言。「〜と表示されている」を includes で確認する用
-// opt：{ titleSelector（h1 がない画面の見出し）, errorSelector, alertSelector, statusSelector, extra: { 名前: セレクター } }
+// opt：{ frame（画面の本体が iframe の中にある場合、その iframe のセレクター。同一オリジンに限る）, titleSelector（h1 がない画面の見出し）, errorSelector, alertSelector, statusSelector, extra: { 名前: セレクター } }
 export function pageState(opt = {}) {
+  // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+  const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+  const document = frameEl?.contentDocument ?? window.document;
+  const { location, getComputedStyle, CSS } = document.defaultView ?? window;
   const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
   const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
   const key = e => e.id || e.name || '';
@@ -69,6 +73,11 @@ export const state = makeState();
 // Playwright では page.goto、Midscene の YAML では javascript＋sleep に変換される（core/runner.mjs の toYamlSteps）
 export const go = (path, title, timeout = 15000) => [{ goto: path }, ...(title ? [{ aiWaitFor: `「${title}」画面が表示されている`, timeout }] : [])];
 
+// ファイル選択欄にファイルを設定する（Playwright エンジン専用）。file は tests ディレクトリからの相対パス
+export const upload = (prompt, file) => ({ upload: prompt, file });
+// クリックしてダウンロードを待ち、name に { filename, size, text, lines } を記録する（Playwright エンジン専用）
+export const download = (prompt, name) => ({ download: prompt, name });
+
 // 証跡の画面を撮る。label は「ケースID 説明」
 export const shot = label => ({ recordToReport: label });
 
@@ -96,6 +105,9 @@ export const answerDialog = answer => ({ javascript: `sessionStorage.setItem('__
 export function toYamlSteps(step, { dialogs = false } = {}) {
   if ('goto' in step) return [{ javascript: `setTimeout(() => { location.href = '${step.goto}'; }, 300);\n` }, { sleep: 1500 }];
   if (dialogs && ('aiTap' in step || 'aiKeyboardPress' in step)) return [{ javascript: DIALOG_HOOK }, step];
+  // upload / download は Playwright エンジン専用。YAML では、ダウンロードはクリックだけ行い、アップロードは行わない（runner が警告する）
+  if ('download' in step) return [{ aiTap: step.download }];
+  if ('upload' in step) return [];
   return [step];
 }
 

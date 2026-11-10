@@ -36,7 +36,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          for f in unit engine ai demo; do
+          for f in unit engine ai agent-model demo; do
             node --test test/$f.test.mjs > digest.log 2>&1 || { echo "=== test/$f.test.mjs"; grep -E "^not ok|CLI-ERRORS|^    [+-] " digest.log | cut -c1-3000 | head -40; }
           done
       # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）

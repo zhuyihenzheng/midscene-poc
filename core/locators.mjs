@@ -18,7 +18,7 @@ export function createLocators(...tables) {
   const unmapped = suites => {
     const out = new Set();
     for (const s of suites) for (const c of s.cases) for (const st of c.flow)
-      for (const k of KINDS) if (typeof st[k] === 'string') { try { resolve(k === 'aiHover' ? 'aiTap' : k, st[k]); } catch { out.add(`${k}「${st[k]}」`); } }
+      for (const k of [...KINDS, 'upload', 'download']) if (typeof st[k] === 'string') { try { resolve({ aiHover: 'aiTap', download: 'aiTap', upload: 'aiInput' }[k] ?? k, st[k]); } catch { out.add(`${k}「${st[k]}」`); } }
     return [...out];
   };
   return { resolve, unmapped };
@@ -58,6 +58,15 @@ export const TABLE_FORM = {
     [/^(.+)の(?:入力欄|選択欄|テキストエリア)$/, (page, [, label]) => page.getByLabel(label, { exact: true })
       .or(cellField(page, label, 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), select, textarea')).first()],
   ],
+};
+
+// iframe の中の画面：辞書の各パターンを、指定した iframe の中で探すようにする。
+//   createLocators(inFrame('iframe[name=main]', DEFAULTS))            画面全体が iframe の中
+//   createLocators(inFrame('#detail', SITE_DETAIL), DEFAULTS)         一部の指示文だけ iframe の中
+export const inFrame = (frameSelector, ...tables) => {
+  const out = {};
+  for (const t of tables) for (const [kind, list] of Object.entries(t)) (out[kind] ??= []).push(...list.map(([re, fn]) => [re, (page, m) => fn(page.frameLocator ? page.frameLocator(frameSelector) : page, m)]));
+  return out;
 };
 
 // 標準辞書：アクセシビリティ（label・fieldset/legend・role・h1）が整った画面なら、サイト固有の辞書なしで解決できる指示文の書き方。

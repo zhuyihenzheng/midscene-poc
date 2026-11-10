@@ -49,6 +49,8 @@ npm run demo
 | NG（実行不能） | 操作不了，没读到值 | 画面改了，或者测试本身有问题，修用例或辞典 |
 | ブロック | 前一个用例中断，没有执行 | 先解决前一个 |
 
+iframe 里的画面、弹出的新窗口、文件上传和下载（可以判定下载文件的名字和内容）都支持，写法见 `.github/instructions/site-tests.instructions.md`。
+
 每个用例还会自动检查：JS 异常、HTTP 5xx、画面上出现 `undefined` / `NaN`、图片加载失败（算 NG）；横向滚动条、文字被截断、输入框没有 label（只提示）。
 
 加上 `--visual` 后，每张证跡截图会和 `visual-baseline/` 里的基准图片比较，不同的地方以"注意"列出并附差分图。第一次执行会自动登记基准；有意的界面改动用 `--update-visual` 接受。图片会因系统和字体而不同，所以基准保存在各自的电脑上，不进仓库。
@@ -66,6 +68,7 @@ node sites/<站点>/tests/run.mjs --build-only        # 不开浏览器：检查
 node sites/<站点>/tests/run.mjs --only 03-input     # 只跑一个 suite
 node sites/<站点>/tests/run.mjs --retries 1         # 操作失败的 suite 重跑一次
 node sites/<站点>/tests/run.mjs --visual            # 把截图和基准图片逐像素比较，发现布局、颜色的变化
+node sites/<站点>/tests/run.mjs --workers 4         # 并行执行 suite（仅限 site.parallel = true、suite 之间不共享数据的站点）
 node core/new-site.mjs <站点> --url <起始URL>       # 生成新站点的模板
 node core/explore.mjs sites/<站点>/tests/site.mjs   # 采集画面（输入项、按钮、消息）
 npm test                                            # 框架自身的测试
@@ -83,7 +86,11 @@ npm test                                            # 框架自身的测试
 - `--engine playwright --ai-assert`：操作用 Playwright，只有 `aiAssert` 的目视判断交给 AI；
 - `--engine playwright --heal`：定位器失效的步骤由 AI 代为操作，并在结果里列出需要修改的辞典条目。
 
-这三条路径在 `npm test` 里都用一个模拟的模型服务跑过（真实的 Midscene 库和 CLI，模型的回答是预先写好的）。模型在你的画面上认得准不准，要用真实模型试过才知道。
+这三条路径在 `npm test` 里都用一个模拟的模型服务跑过（真实的 Midscene 库和 CLI，模型的回答是预先写好的）。用真实视觉模型跑 Midscene 引擎的记录见 [docs/ai-engine-evidence.md](docs/ai-engine-evidence.md)。你自己的模型在你的画面上认得准不准，仍然要实际试过才知道。
+
+### 没有模型 API 时：让 Claude Code / Copilot 充当模型
+
+`node core/agent-model.mjs` 会启动一个桥接服务：Midscene 每次要问模型时，它把问题和当时的截图写到 `.agent-model/`，等有人写下答案再继续。让 Claude Code 或 Copilot 的 Agent 看图作答，就能在没有任何模型 API 的情况下跑 Midscene 引擎、`--heal` 和 `--ai-assert`。它比较慢，适合第一次摸清画面、收集辞典的修改建议，不适合每天的定期执行（那是 Playwright 引擎的事）。
 
 ## CI
 

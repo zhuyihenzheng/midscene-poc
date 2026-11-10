@@ -4,6 +4,8 @@
 // - aiTap / aiHover / aiInput / aiWaitFor → サイトのロケーター辞書（site.locators）で固定ロケーターに解決
 //   aiInput の対象が select なら表示名で選択、aiKeyboardPress はキー入力
 // - aiAssert → 既定は未実施（skipped）。aiAssert:true のときだけ Midscene の PlaywrightAgent で AI 判定（要モデル）
+// - upload → ファイル選択欄にファイルを設定／download → クリックしてダウンロードを待ち、ファイル名・大きさ・内容（テキストの場合）を記録
+// - 別ウィンドウ（window.open・target=_blank）が開いたら、以降のステップはそのウィンドウに対して行い、閉じたら元のウィンドウへ戻る
 // - recordToReport → スクリーンショット（manifest に記録し、runner が evidence/ へ取り込む）。visual:true なら見た目の比較用の PNG も撮る
 // ケースは 1 ページ上で順に実行する（前ケースの画面を引き継ぐケースがあるため）。失敗したケースは以降のステップを打ち切り、
 // その画面を引き継ぐ後続ケース（flow が goto で始まらないケース）は「ブロック」として実行しない。
@@ -17,7 +19,7 @@ const DEFAULT_TIMEOUT = 15000;
 
 // site：{ url, viewport, login(browser, { viewport }) → { context, page }, locators: { resolve }, settle?, health? }
 // viewport は Midscene 版と同じにする（枠内表示・スクロール系の判定が画面サイズに依存するため）
-export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAssert = false, heal = false, visual = false, agentFactory = aiAgent, log = console.log }) {
+export async function runSuite(suite, { site, outFile, shotsDir, traceFile, downloadsDir = path.join(shotsDir, 'downloads'), aiAssert = false, heal = false, visual = false, agentFactory = aiAgent, log = console.log }) {
   const browser = await launch();
   const out = {}; const tasks = {}; const errors = []; const shots = []; const info = {};
   let health = null;
@@ -29,9 +31,18 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
     const agent = aiAssert || heal ? await agentFactory(page) : null;
     const monitor = watch(page, site);
     // ダイアログ：site.dialogs = true なら記録用の差し替えを全ページに入れる。無効のときは OK で閉じ、自動検査の注意に残す
+    const onDialog = p => p.on('dialog', d => { monitor.note('warn', '想定外のダイアログ', `${d.type()}：${d.message()}（site.dialogs = true で記録・判定できる）`); d.accept().catch(() => {}); });
     if (site.dialogs) { await context.addInitScript(DIALOG_HOOK); await page.evaluate(DIALOG_HOOK).catch(() => {}); }
-    else page.on('dialog', d => { monitor.note('warn', '想定外のダイアログ', `${d.type()}：${d.message()}（site.dialogs = true で記録・判定できる）`); d.accept().catch(() => {}); });
-    const ctx = { site, out, shots, shotsDir, agent, aiAssert, heal, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
+    else onDialog(page);
+    // 操作対象のウィンドウ：最後に開いたもの。閉じたら 1 つ前へ戻る
+    const pages = [page];
+    // 閉じた直後は close イベントの処理より先に次のステップへ進むことがあるため、閉じたウィンドウは飛ばす
+    const current = () => pages.findLast(p => !p.isClosed()) ?? pages[0];
+    context.on('page', p => {
+      pages.push(p); p.setDefaultTimeout(DEFAULT_TIMEOUT); monitor.attach(p); if (!site.dialogs) onDialog(p);
+      p.on('close', () => { const i = pages.indexOf(p); if (i > 0) pages.splice(i, 1); });
+    });
+    const ctx = { site, out, shots, shotsDir, downloadsDir, pages, agent, aiAssert, heal, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
     let prev = null;
     for (const c of suite.cases) {
       const t0 = Date.now(); const ci = (info[c.id] = { healed: [] });
@@ -42,14 +53,14 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
       }
       monitor.setCase(c.id);
       try {
-        for (const st of c.flow) await step(page, st, { ...ctx, c, ci });
-        await monitor.lint();
+        for (const st of c.flow) await step(current(), st, { ...ctx, c, ci });
+        await monitor.lint(current());
         tasks[c.id] = 'ok';
       } catch (e) {
         tasks[c.id] = 'failed'; ci.error = e.message.split('\n')[0];
         errors.push(`${c.id}: ${ci.error}`);
-        await monitor.lint();
-        await shot(page, `${c.id} 失敗時の画面`, { ...ctx, visual: false }).catch(() => {});
+        await monitor.lint(current());
+        await shot(current(), `${c.id} 失敗時の画面`, { ...ctx, visual: false }).catch(() => {});
       }
       monitor.setCase(null);
       ci.sec = +((Date.now() - t0) / 1000).toFixed(1);
@@ -67,6 +78,9 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
 async function step(page, st, ctx) {
   const timeout = st.timeout ?? DEFAULT_TIMEOUT;
   if ('goto' in st) {
+    // 独立したケースの開始：前のケースが開いたままにした別ウィンドウを閉じ、元のウィンドウで開く
+    for (const p of ctx.pages.slice(1)) if (!p.isClosed()) await p.close().catch(() => {});
+    page = ctx.pages[0];
     await page.goto(new URL(st.goto, ctx.site.url).href, { waitUntil: 'domcontentloaded', timeout });
     return ctx.settle(page);
   }
@@ -89,7 +103,26 @@ async function step(page, st, ctx) {
       else await ctx.agent.aiWaitFor(st.aiWaitFor, { timeoutMs: timeout });
       ctx.ci.healed.push({ kind, prompt: st[kind], error: e.message.split('\n')[0] });
     }
+    // クリックで別ウィンドウが開いた場合は、そのウィンドウの読み込みを待つ
+    if (kind === 'aiTap') { await page.waitForTimeout(50).catch(() => {}); const top = ctx.pages.findLast(p => !p.isClosed()) ?? ctx.pages[0]; if (top !== page) return ctx.settle(top); }
     return ctx.settle(page);
+  }
+  if ('upload' in st) {
+    const target = ctx.resolve('aiInput', st.upload, page);
+    await target.setInputFiles([].concat(st.file).map(f => path.resolve(ctx.site.dir, f)), { timeout });
+    return ctx.settle(page);
+  }
+  if ('download' in st) {
+    const target = ctx.resolve('aiTap', st.download, page);
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout }), target.click({ timeout })]);
+    fs.mkdirSync(ctx.downloadsDir, { recursive: true });
+    const file = path.join(ctx.downloadsDir, `${ctx.c.id}_${dl.suggestedFilename().replace(/[\\/:*?"<>|]+/g, '_')}`);
+    await dl.saveAs(file);
+    const buf = fs.readFileSync(file);
+    // テキストとして読める小さなファイル（CSV など）は内容も記録する。BOM は除く
+    const text = buf.length <= 200000 && !buf.subarray(0, 4000).includes(0) ? buf.toString('utf8').replace(/^\uFEFF/, '') : null;
+    if (st.name) ctx.out[st.name] = { filename: dl.suggestedFilename(), size: buf.length, text, lines: text === null ? null : text.split(/\r?\n/).filter(l => l !== '') };
+    return;
   }
   if ('aiAssert' in st) {
     if (!st.name) return;
@@ -97,7 +130,7 @@ async function step(page, st, ctx) {
       : { pass: null, skipped: true, thought: 'Playwright モード：AI 判定は未実施' };
     return;
   }
-  if ('recordToReport' in st) { await ctx.monitor.lint(); return shot(page, st.recordToReport, ctx); }
+  if ('recordToReport' in st) { await ctx.monitor.lint(page); return shot(page, st.recordToReport, ctx); }
   throw new Error('未対応のステップ：' + JSON.stringify(st).slice(0, 120));
 }
 

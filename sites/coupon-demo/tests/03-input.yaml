@@ -19,6 +19,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -71,6 +75,10 @@ tasks:
       - aiTap: 受取方法の「メール」ラジオボタン
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -127,6 +135,10 @@ tasks:
       - aiTap: 受取方法の「アプリ」ラジオボタン
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -175,6 +187,10 @@ tasks:
       - aiTap: 受取方法の「メール」ラジオボタン
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -234,6 +250,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -291,6 +311,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -347,6 +371,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -399,6 +427,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -456,6 +488,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -508,6 +544,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -570,6 +610,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';
@@ -625,6 +669,10 @@ tasks:
         timeout: 15000
       - javascript: |
           (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
             const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
             const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
             const key = e => e.id || e.name || '';

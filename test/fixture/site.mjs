@@ -25,6 +25,17 @@ export async function startFixture() {
 <button type="submit" style="position:absolute;left:100px;top:220px;width:120px;height:40px">保存</button></form>`));
       case '/flaky': return html(page(++flaky === 1 ? '準備中' : '安定', '<p>本文</p>'));
       case '/styled': return html(page('見た目', `<p style="background:${look.color};color:#fff;padding:40px">お知らせ</p><p id="clock">${Date.now()}</p>`));
+      // iframe の中の画面
+      case '/frame': return html(page('枠つき', '<iframe name="main" src="/frame-inner" style="width:600px;height:300px"></iframe>'));
+      case '/frame-inner': return html(page('検索', `<form action="/frame-inner"><p><label for="q">検索語</label> <input id="q" name="q" value="${url.searchParams.get('q') ?? ''}"></p><button type="submit">検索</button></form>${url.searchParams.get('q') ? `<p role="status">「${url.searchParams.get('q')}」の検索結果：3 件</p>` : ''}`));
+      // 別ウィンドウで選ぶ画面（選ぶと元の画面の入力欄に反映して閉じる）
+      case '/popup': return html(page('注文', `<p><label for="cust">顧客</label> <input id="cust" name="cust" readonly></p><button type="button" onclick="window.open('/popup-list', 'sub', 'width=500,height=400')">顧客選択</button>`));
+      case '/popup-list': return html(page('顧客選択', `<table><thead><tr><th>顧客名</th><th>操作</th></tr></thead><tbody>${['青葉商事', '北山電機'].map(n => `<tr><td>${n}</td><td><button type="button" onclick="opener.document.getElementById('cust').value='${n}'; window.close()">選択</button></td></tr>`).join('')}</tbody></table>`));
+      // ファイルのアップロード・ダウンロード
+      case '/files': return html(page('ファイル', `<form method="post" action="/upload" enctype="multipart/form-data"><p><label for="f">添付ファイル</label> <input type="file" id="f" name="f"></p><button type="submit">アップロード</button></form><p><a href="/export.csv">CSV ダウンロード</a></p>`));
+      case '/upload': { let n = 0; const chunks = []; req.on('data', d => { n += d.length; chunks.push(d); }); req.on('end', () => { const body = Buffer.concat(chunks).toString('latin1'); const name = Buffer.from(body.match(/filename="([^"]*)"/)?.[1] ?? '', 'latin1').toString('utf8'); const content = body.split('\r\n\r\n')[1]?.split('\r\n--')[0] ?? ''; html(page('アップロード完了', `<dl><dt>ファイル名</dt><dd>${name}</dd><dt>バイト数</dt><dd>${content.length}</dd></dl>`)); }); return; }
+      case '/export.csv': res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="orders.csv"' }); return res.end('\uFEFF受注番号,顧客名\r\nJ-0001,青葉商事\r\nJ-0002,北山電機\r\n');
+      case '/slow': return setTimeout(() => html(page('遅い画面', '<p>本文</p>')), 1200);
       case '/loading': return html(page('読込', `<p id="l">読み込み中</p><script>setTimeout(() => document.getElementById('l').remove(), 300);</script>`));
       default: return html(page('エラー', '<p>見つかりません。</p>'), 404);
     }

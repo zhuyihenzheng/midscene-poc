@@ -2,7 +2,9 @@
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs';
 import { runTests } from '../core/runner.mjs';
-import { makeState, go, shot } from '../core/steps.mjs';
+import { makeState, go, shot, upload, download } from '../core/steps.mjs';
+import { createLocators, DEFAULTS, inFrame } from '../core/locators.mjs';
+import path from 'path'; import { fileURLToPath } from 'url';
 import { includes, not } from '../core/check.mjs';
 import { startFixture, makeSite, base } from './fixture/site.mjs';
 
@@ -131,4 +133,61 @@ test('--visual：初回は基準を登録し、見た目が変わると注意と
   assert.deepEqual(updated.summary.visualDiff, []);
   assert.deepEqual((await run(site, '--visual')).summary.visualDiff, []);
   fx.look.color = '#1d4ed8';
+});
+
+test('iframe の中の画面：枠の中の入力欄・ボタンを操作し、枠の中の表示を記録する', async () => {
+  const frameState = makeState({ frame: 'iframe[name=main]' });
+  const site = makeSite(fx.url, [{ file: '01-frame', title: '枠', cases: [
+    { ...base, id: 'I-01', title: '枠の中で検索', flow: [{ goto: '/frame' }, { aiWaitFor: '「検索」画面が表示されている', timeout: 5000 }, { aiInput: '検索語の入力欄', value: 'モニター' }, { aiTap: '「検索」ボタン' },
+      { aiWaitFor: '「「モニター」の検索結果：3 件」と表示されている', timeout: 5000 }, frameState('I01'), state('I01_outer'), shot('I-01 枠の中の検索結果')],
+      verify: [['枠の中の見出し', 'I01.title', '検索'], ['枠の中の結果', 'I01.status', '「モニター」の検索結果：3 件'], ['枠の中の入力値', 'I01.fields.q.value', 'モニター'], ['枠の外の見出し', 'I01_outer.title', '枠つき']] }] }],
+    { locators: createLocators(inFrame('iframe[name=main]', DEFAULTS)) });
+  const r = await run(site);
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []]]);
+});
+
+test('別ウィンドウ：開いたウィンドウで操作し、閉じたら元のウィンドウに戻って続ける', async () => {
+  const site = makeSite(fx.url, [{ file: '01-popup', title: '別ウィンドウ', cases: [
+    { ...base, id: 'P-01', title: '別ウィンドウで顧客を選ぶ', flow: [...go('/popup', '注文'), { aiTap: '「顧客選択」ボタン' }, screen('顧客選択'), state('P01_sub'), shot('P-01 顧客選択'),
+      { aiTap: '「北山電機」の行の「選択」ボタン' }, screen('注文'), state('P01'), shot('P-01 選択後')],
+      verify: [['別ウィンドウの見出し', 'P01_sub.title', '顧客選択'], ['別ウィンドウの一覧', 'P01_sub.table', [['青葉商事', '選択'], ['北山電機', '選択']]], ['元の画面に戻る', 'P01.title', '注文'], ['選んだ顧客が反映される', 'P01.fields.cust.value', '北山電機']] },
+    // 別ウィンドウを開いたまま終わっても、次の独立したケースは元のウィンドウから始まる
+    { ...base, id: 'P-02', title: '開いたままにする', flow: [...go('/popup', '注文'), { aiTap: '「顧客選択」ボタン' }, screen('顧客選択'), state('P02')], verify: [['見出し', 'P02.title', '顧客選択']] },
+    { ...base, id: 'P-03', title: '次のケースは元のウィンドウ', flow: [...go('/', 'ホーム'), state('P03')], verify: [['見出し', 'P03.title', 'ホーム']] },
+  ] }]);
+  const r = await run(site);
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []], ['OK', []], ['OK', []]]);
+});
+
+test('ファイル：アップロードした内容がサーバーに届き、ダウンロードしたファイルの名前と中身を判定できる', async () => {
+  const sample = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'upload-sample.txt');
+  const site = makeSite(fx.url, [{ file: '01-files', title: 'ファイル', cases: [
+    { ...base, id: 'U-01', title: 'アップロード', flow: [...go('/files', 'ファイル'), upload('添付ファイルの入力欄', sample), { aiTap: '「アップロード」ボタン' }, screen('アップロード完了'), state('U01')],
+      verify: [['ファイル名', 'U01.dl.ファイル名', 'upload-sample.txt'], ['バイト数', 'U01.dl.バイト数', '14']] },
+    { ...base, id: 'U-02', title: 'ダウンロード', flow: [...go('/files', 'ファイル'), download('「CSV ダウンロード」リンク', 'U02')],
+      verify: [['ファイル名', 'U02.filename', 'orders.csv'], ['行（BOM・改行を除く）', 'U02.lines', ['受注番号,顧客名', 'J-0001,青葉商事', 'J-0002,北山電機']]] },
+  ] }]);
+  const r = await run(site);
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []], ['OK', []]]);
+  assert.ok(fs.existsSync(site.dir + 'out/downloads/01-files/U-02_orders.csv'));
+  // Midscene の YAML では、ダウンロードはクリックだけになり、アップロードは出力しない
+  const yaml = fs.readFileSync(site.dir + '01-files.yaml', 'utf8');
+  assert.ok(yaml.includes('aiTap: 「CSV ダウンロード」リンク') && !yaml.includes('upload'));
+});
+
+test('--workers：データを共有しないサイトはスイートを並列に実行でき、結果は順に実行したときと同じ', async () => {
+  const suite = n => ({ file: `0${n}-slow`, title: `遅い画面 ${n}`, cases: [
+    { ...base, id: `W-0${n}`, title: '遅い画面', flow: [{ goto: '/slow' }, screen('遅い画面'), state(`W0${n}`), { goto: '/slow' }, screen('遅い画面')], verify: [['見出し', `W0${n}.title`, '遅い画面']] }] });
+  const suites = [1, 2, 3, 4].map(suite);
+  const t0 = Date.now();
+  const seq = await run(makeSite(fx.url, suites, { parallel: true }));
+  const t1 = Date.now();
+  const par = await run(makeSite(fx.url, suites, { parallel: true }), '--workers', '4');
+  const t2 = Date.now();
+  assert.deepEqual(par.summary.cases.map(c => [c.id, c.verdict]), seq.summary.cases.map(c => [c.id, c.verdict]));
+  assert.deepEqual(par.summary.cases.map(c => c.verdict), ['OK', 'OK', 'OK', 'OK']);
+  assert.ok(t2 - t1 < (t1 - t0) * 0.75, `並列 ${t2 - t1}ms、順次 ${t1 - t0}ms`);
+  // site.parallel のないサイトでは、指定しても順に実行する
+  const refused = await run(makeSite(fx.url, suites.slice(0, 1)), '--workers', '4');
+  assert.deepEqual(refused.summary.cases.map(c => c.verdict), ['OK']);
 });
