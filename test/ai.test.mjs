@@ -11,6 +11,13 @@ import { startMockModel } from './fixture/mock-model.mjs';
 const state = makeState();
 const screen = t => ({ aiWaitFor: `「${t}」画面が表示されている`, timeout: 8000 });
 let fx, model;
+// 失敗時の手がかり：Midscene CLI のログからエラーの行だけを抜き出す
+function cliErrors(site, file) {
+  const f = site.dir + `out/${file}.log`;
+  if (!fs.existsSync(f)) return 'CLI のログなし';
+  const lines = fs.readFileSync(f, 'utf8').split('\n').map(l => l.trim()).filter(l => /error|fail|cannot|not found|ENOENT|timeout/i.test(l) && !/^at /.test(l));
+  return 'CLI-ERRORS: ' + [...new Set(lines)].slice(0, 12).map(l => l.slice(0, 260)).join(' || ');
+}
 before(async () => {
   fx = await startFixture();
   model = await startMockModel({
@@ -54,7 +61,7 @@ test('Midscene エンジン：同じ flow を YAML にして CLI で実行し、
   ] }], { viewport: { width: 1000, height: 700 } });
   const before = model.calls.length;
   const r = await runTests(site, ['--engine', 'midscene'], { setExitCode: false });
-  const log = fs.existsSync(site.dir + 'out/01-mid.log') ? fs.readFileSync(site.dir + 'out/01-mid.log', 'utf8').slice(-1500) : '';
+  const log = cliErrors(site, '01-mid');
   assert.deepEqual(r.summary.cases.map(c => c.verdict), ['OK', 'OK'], log);
   assert.equal(r.results[0].engine, 'midscene');
   assert.deepEqual(r.results[0].items.filter(i => i.ai).map(i => i.pass), [true]);
@@ -73,6 +80,6 @@ test('Midscene エンジン：確認ダイアログの文言を記録し、キ�
       verify: [['確認ダイアログ', 'G02.dialogs', ['削除します。よろしいですか？']], ['OK で処理が進む', 'G02.dl.名前', 'deleted']] },
   ] }], { dialogs: true });
   const r = await runTests(site, ['--engine', 'midscene'], { setExitCode: false });
-  const log = fs.existsSync(site.dir + 'out/01-dialog.log') ? fs.readFileSync(site.dir + 'out/01-dialog.log', 'utf8').slice(-1500) : '';
+  const log = cliErrors(site, '01-dialog');
   assert.deepEqual(r.summary.cases.map(c => c.verdict), ['OK', 'OK'], log);
 });
