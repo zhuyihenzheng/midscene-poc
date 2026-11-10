@@ -8,6 +8,9 @@ import { validateCases } from '../core/validate.mjs';
 import { designItems, analyze } from '../core/coverage.mjs';
 import { compareBaseline, saveBaseline, loadBaseline } from '../core/baseline.mjs';
 import { toYamlSteps, continues, go, makeState } from '../core/steps.mjs';
+import { TABLE_FORM } from '../core/locators.mjs';
+import { SUITES as LEGACY } from '../sites/legacy-demo/tests/cases.mjs';
+import legacySite from '../sites/legacy-demo/tests/site.mjs';
 import { healthItems } from '../core/health.mjs';
 import { SUITES as DEMO } from '../sites/coupon-demo/tests/cases.mjs';
 import demoSite from '../sites/coupon-demo/tests/site.mjs';
@@ -72,7 +75,7 @@ test('validate：正しいケースは指摘なし、書き間違いは実行前
 });
 
 test('coverage：設計書から画面・メッセージを拾い、未対応と根拠のない期待値を挙げる', () => {
-  const md = ['| ID | 画面名 |', '|---|---|', '| S01 | ログイン |', '| S02 | 一覧 |', '- 未入力：「IDを入力してください。」', '| 在庫不足 | 在庫が不足しています（残り N 枚）。 |', '- 履歴なし：「履歴はありません。」'].join('\n');
+  const md = ['| ID | 画面名 |', '|---|---|', '| S01 | ログイン |', '| S02 | 一覧 |', '', '| 商品コード | 商品名 |', '|---|---|', '| P01 | ノートPC |', '', '- 未入力：「IDを入力してください。」', '| 在庫不足 | 在庫が不足しています（残り N 枚）。 |', '- 履歴なし：「履歴はありません。」'].join('\n');
   assert.deepEqual(designItems(md).map(i => `${i.type}:${i.key}`), ['画面:S01', '画面:S02', 'メッセージ:IDを入力してください。', 'メッセージ:在庫が不足しています（残り N 枚）。', 'メッセージ:履歴はありません。']);
   const suites = [{ cases: [
     mk('A-01', { screen: 'S01 ログイン', verify: [['必須', 'A01', 'IDを入力してください。'], ['在庫', 'A01', '在庫が不足しています（残り 2 枚）。']] }),
@@ -106,6 +109,9 @@ test('baseline：既知 NG・新規 NG・NG 内容の変化・解消を区別す
 test('steps：goto は Midscene の YAML では javascript＋sleep になり、goto で始まらないケースは前のケースの続き', () => {
   assert.deepEqual(toYamlSteps({ goto: '/a' }).map(s => Object.keys(s)[0]), ['javascript', 'sleep']);
   assert.deepEqual(toYamlSteps({ aiTap: 'x' }), [{ aiTap: 'x' }]);
+  // site.dialogs = true のときは、クリックの直前にダイアログの差し替えを入れる
+  assert.deepEqual(toYamlSteps({ aiTap: 'x' }, { dialogs: true }).map(s => Object.keys(s)[0]), ['javascript', 'aiTap']);
+  assert.deepEqual(toYamlSteps({ aiInput: 'x', value: 1 }, { dialogs: true }).length, 1);
   assert.equal(continues({ flow: go('/a', '画面') }), false);
   assert.equal(continues({ flow: [{ aiTap: 'x' }] }), true);
   assert.equal(continues({ continues: false, flow: [{ aiTap: 'x' }] }), false);
@@ -123,4 +129,14 @@ test('デモサイトのケース定義：検査で指摘なし・標準辞書�
   assert.deepEqual(validateCases(DEMO), []);
   assert.deepEqual(demoSite.locators.unmapped(DEMO), []);
   assert.equal(DEMO.flatMap(s => s.cases).length, 23);
+});
+
+test('レガシー画面のデモ：表形式フォームの辞書で全指示文を解決でき、設計書の画面・メッセージにすべてケースがある', () => {
+  assert.deepEqual(validateCases(LEGACY), []);
+  assert.deepEqual(legacySite.locators.unmapped(LEGACY), []);
+  const { rows, unfounded } = analyze(fs.readFileSync(legacySite.design, 'utf8'), LEGACY);
+  assert.deepEqual(rows.filter(r => r.type === '画面').map(r => r.key), ['G00', 'G01', 'G02', 'G03'], '商品コードの表を画面一覧と取り違えない');
+  assert.deepEqual([rows.filter(r => !r.cells?.length && !r.cases.length), unfounded], [[], []]);
+  const loc = createLocators(TABLE_FORM, DEFAULTS);
+  for (const [k, p] of [['aiInput', '顧客名の入力欄'], ['aiTap', '至急のチェックボックス'], ['aiTap', '区分の「法人」ラジオボタン'], ['aiTap', '「登録」ボタン']]) assert.doesNotThrow(() => loc.resolve(k, p), p);
 });

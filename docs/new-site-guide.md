@@ -31,7 +31,8 @@
    - 能取得后端收到的请求（例如 WireMock 的请求记录；coupon-demo 用 `/__test/ledger`）。
 
    没有这些，就只能做画面层面的判定，而且用例之间会互相影响数据。这部分 Copilot 无法凭空写出来，需要开发方提供接口。
-4. **画面的可访问性**：如果输入框有 `<label>`、单选/复选框放在 `fieldset` + `legend` 里、每个画面有 `h1`，就可以直接使用标准辞典（`core/locators.mjs` 的 `DEFAULTS`），不必写站点专用的辞典。缺少这些的画面，需要在 `sites/<name>/tests/locators.mjs` 里补充规则（写法见 `.github/instructions/site-tests.instructions.md` 的 *Site dictionary*）。
+4. **老式画面**：没有 `<label>` 的表格布局表单、没有 `h1`、用 `alert` / `confirm` 弹窗的系统也能测，做法参照 `sites/legacy-demo/tests/`：`site.mjs` 里用 `createLocators(SITE, TABLE_FORM, DEFAULTS)`（按"项目名单元格旁边的输入框"定位）、`state: { titleSelector: '画面名所在的元素' }`、`dialogs: true`（记录弹窗文字，可指定点确定还是取消）。
+5. **画面的可访问性**：如果输入框有 `<label>`、单选/复选框放在 `fieldset` + `legend` 里、每个画面有 `h1`，就可以直接使用标准辞典（`core/locators.mjs` 的 `DEFAULTS`），不必写站点专用的辞典。缺少这些的画面，需要在 `sites/<name>/tests/locators.mjs` 里补充规则（写法见 `.github/instructions/site-tests.instructions.md` 的 *Site dictionary*）。
 
 ## 1〜5 的命令
 

@@ -38,6 +38,28 @@ export const clickable = (scope, name, last = false) => {
   return last ? l.last() : l.first();
 };
 
+// 表形式のフォーム（label のない古い画面）：「項目名のセル」と同じ行にある入力部品を探す。
+//   <tr><td>顧客名</td><td><input name="custName"></td></tr>
+// 項目名のセルに「必須」などの印が付いていてもよい（先頭一致）。同じ項目名が複数あるときは最初のもの
+export const cellField = (scope, label, selector = 'input:not([type=hidden]), select, textarea') =>
+  scope.locator('tr').filter({ has: scope.locator('th, td').filter({ hasText: new RegExp(`^\\s*${esc(label)}`) }) }).filter({ visible: true }).first().locator(selector).first();
+
+// 表形式のフォーム用の辞書。label のない画面のサイトは createLocators(TABLE_FORM, DEFAULTS) とする（サイト固有の辞書はその前に置く）
+export const TABLE_FORM = {
+  aiTap: [
+    // 例：至急のチェックボックス（項目名のセルの隣にあるチェックボックス）
+    [/^(.+)のチェックボックス$/, (page, [, label]) => cellField(page, label, 'input[type=checkbox]')],
+    // 例：区分の「法人」ラジオボタン（項目名のセルの隣に並ぶラジオボタン。選択肢は value か直後の文言）
+    [/^(.+)の「(.+)」ラジオボタン$/, (page, [, label, name]) => page.locator('tr').filter({ has: page.locator('th, td').filter({ hasText: new RegExp(`^\\s*${esc(label)}`) }) }).first()
+      .locator(`input[type=radio][value="${name}"], label:has-text("${name}") input[type=radio]`).first()],
+  ],
+  aiInput: [
+    // label がある項目はそれを優先し、なければ項目名のセルの隣を探す（label のある画面とない画面が混ざっていてもよい）
+    [/^(.+)の(?:入力欄|選択欄|テキストエリア)$/, (page, [, label]) => page.getByLabel(label, { exact: true })
+      .or(cellField(page, label, 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), select, textarea')).first()],
+  ],
+};
+
 // 標準辞書：アクセシビリティ（label・fieldset/legend・role・h1）が整った画面なら、サイト固有の辞書なしで解決できる指示文の書き方。
 // 新しいサイトのケースはこの書き方で flow を書けば、Midscene（AI）でも Playwright（辞書）でもそのまま動く。
 export const DEFAULTS = {

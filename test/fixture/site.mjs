@@ -17,7 +17,12 @@ export async function startFixture() {
       case '/broken': return html(page('集計', `<p>合計：undefined 円</p><script>fetch('/api/fail'); setTimeout(() => { throw new Error('boom'); }, 0);</script>`));
       case '/api/fail': res.writeHead(500); return res.end('error');
       case '/wide': return html(page('横長', `<div style="width:3000px">横に長い表</div><input name="memo">`));
-      case '/renamed': return html(page('編集', `<form action="/saved"><button type="submit">登録</button></form>`));
+      // 位置を固定した画面（模型の代わりをするサーバーが、決めておいた座標で要素の位置を答えられるようにする）
+      case '/renamed': return html(page('編集', `<form action="/saved"><button type="submit" style="position:absolute;left:100px;top:220px;width:120px;height:40px">登録</button></form>`));
+      case '/fixed-dialog': return html(page('削除', `<button type="button" style="position:absolute;left:100px;top:220px;width:120px;height:40px" onclick="if (confirm('削除します。よろしいですか？')) location.href = '/saved?name=deleted'">削除</button>`));
+      case '/fixed': return html(page('入力', `<form action="/saved"><label for="name" style="position:absolute;left:100px;top:120px">名前</label>
+<input id="name" name="name" style="position:absolute;left:100px;top:150px;width:300px;height:30px;box-sizing:border-box">
+<button type="submit" style="position:absolute;left:100px;top:220px;width:120px;height:40px">保存</button></form>`));
       case '/flaky': return html(page(++flaky === 1 ? '準備中' : '安定', '<p>本文</p>'));
       case '/styled': return html(page('見た目', `<p style="background:${look.color};color:#fff;padding:40px">お知らせ</p><p id="clock">${Date.now()}</p>`));
       case '/loading': return html(page('読込', `<p id="l">読み込み中</p><script>setTimeout(() => document.getElementById('l').remove(), 300);</script>`));

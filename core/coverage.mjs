@@ -1,6 +1,6 @@
 // 観点カバレッジ（--build-only で生成。ブラウザ不要）：設計書の項目にケースがあるか、期待値に設計書の根拠があるかを機械的に確認する。
 // 設計書（Markdown）から拾う項目
-//   画面      表の先頭セルが画面 ID（例 S01）の行。ケースの screen に ID が出てくれば対応あり
+//   画面      見出し行に「画面」を含む表（画面一覧）で、先頭セルが画面 ID（例 S01）の行。ケースの screen に ID が出てくれば対応あり
 //   メッセージ 「…。」で括られた文言と、表のセルのうち「。」で終わる文言。ケースの期待値（verify・check・aiWaitFor）に出てくれば対応あり
 //             「残り N 枚」のような可変部（半角英大文字 1 文字、{…}）は任意の文字列として照合する
 //   要件 ID   site.coverage.idPattern（例 /REQ-\d+/g）を指定した場合。ケースの refs に書いてあれば対応あり
@@ -16,9 +16,12 @@ const pattern = text => new RegExp(esc(text).replace(/\\\{[^}]*\\\}|(?<![A-Za-z0
 export function designItems(md, { idPattern, screenId = /^[A-Z]{1,3}\d{2,}$/ } = {}) {
   const items = []; const seen = new Set();
   const add = (type, key, text) => { if (!seen.has(type + key)) { seen.add(type + key); items.push({ type, key, text }); } };
+  let header = null; // いま読んでいる表の見出し行（表の外では null）
   for (const line of md.split('\n')) {
-    const cells = line.startsWith('|') ? line.split('|').slice(1, -1).map(c => c.trim().replace(/^`|`$/g, '')) : null;
-    if (cells && screenId.test(cells[0]) && cells[1]) add('画面', cells[0], cells[1]);
+    const cells = line.trim().startsWith('|') ? line.trim().split('|').slice(1, -1).map(c => c.trim().replace(/^`|`$/g, '')) : null;
+    if (!cells) header = null; else header ??= cells;
+    // 画面 ID の形をした先頭セルは、商品コードなど別の表にも現れるため、画面一覧の表だけを対象にする
+    if (cells && header.some(c => c.includes('画面')) && screenId.test(cells[0]) && cells[1]) add('画面', cells[0], cells[1]);
     for (const m of line.matchAll(/「([^「」]+。)」/g)) add('メッセージ', m[1], m[1]);
     for (const c of cells ?? []) if (/。$/.test(c) && !/[「」|]/.test(c) && c.length <= 80) add('メッセージ', c, c);
     if (idPattern) for (const m of line.matchAll(idPattern)) add('要件', m[0], line.replace(/^[\s|\-*#]+/, '').slice(0, 60));

@@ -37,7 +37,7 @@ export function lintPage() {
 
 // ページのイベントを監視し、現在のケースに検出を積む。戻り値：{ setCase, lint, result }
 export function watch(page, site) {
-  if (site.health === false) return { setCase() {}, async lint() {}, result: () => null };
+  if (site.health === false) return { setCase() {}, async lint() {}, note() {}, result: () => null };
   const ignore = site.health?.ignore ?? [];
   const origin = new URL(site.url).origin;
   const found = {}; let current = null;
@@ -57,6 +57,7 @@ export function watch(page, site) {
   });
   return {
     setCase(id) { current = id; if (id) found[id] ??= []; },
+    note: add,
     async lint() { for (const f of await page.evaluate(lintPage).catch(() => [])) add(f.level, f.kind, f.detail); },
     result: () => found,
   };

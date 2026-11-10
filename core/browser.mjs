@@ -37,3 +37,6 @@ export async function saveCookies(context, file) {
   fs.writeFileSync(file, JSON.stringify(cookies, null, 1));
   return cookies;
 }
+
+// Playwright 同梱 Chromium の実行ファイル（未取得なら空文字）
+export function bundledChromium() { try { const p = chromium.executablePath(); return fs.existsSync(p) ? p : ''; } catch { return ''; } }

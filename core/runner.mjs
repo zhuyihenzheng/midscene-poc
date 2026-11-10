@@ -27,12 +27,14 @@
 //   afterSuite(s, state) → journal  任意：スイート後処理。戻り値は out/<スイート>-journal.json に保存し、判定の journal になる
 //   emptyJournal              journal がないときの値
 //   settle(page)              任意：操作後の待ち（既定は読み込み完了＋通信の静止）
+//   dialogs                   任意：true で alert / confirm / prompt の文言を記録し、答えを指定できるようにする（core/steps.mjs）
+//   state                     任意：makeState に渡す設定（titleSelector など）。画面採取（core/explore.mjs）も見出しの取得に使う
 //   health                    任意：自動検査の設定（false で無効、{ ignore: [/…/] } で除外）
 //   visual                    任意：見た目の比較の設定（{ threshold: 0.001, mask: ['セレクター'] }）
 //   report: { title, target(), basis, sections({ pw, aiUsed }) → md 行の配列 }  任意
-import fs from 'fs'; import path from 'path'; import { spawnSync } from 'child_process';
+import fs from 'fs'; import path from 'path'; import { spawn } from 'child_process';
 import yaml from 'js-yaml';
-import { launch, saveCookies } from './browser.mjs'; // .env もここで読み込む
+import { launch, saveCookies, bundledChromium } from './browser.mjs'; // .env もここで読み込む
 import { ROOT, rel } from './paths.mjs';
 import { evaluate } from './check.mjs';
 import { continues, toYamlSteps } from './steps.mjs';
@@ -67,7 +69,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   for (const s of SUITES) {
     const doc = { web: { url: site.url, cookie: rel(site.cookieFile), viewportWidth: site.viewport.width, viewportHeight: site.viewport.height,
       output: rel(OUT + `out/${s.file}.json`) },
-      tasks: s.cases.map(c => ({ name: `${c.id}_${c.title}`, continueOnError: true, flow: c.flow.flatMap(toYamlSteps).map(site.yamlStep ?? (st => st)) })) };
+      tasks: s.cases.map(c => ({ name: `${c.id}_${c.title}`, continueOnError: true, flow: c.flow.flatMap(st => toYamlSteps(st, { dialogs: !!site.dialogs })).map(site.yamlStep ?? (st => st)) })) };
     fs.writeFileSync(OUT + s.file + '.yaml', `# 自動生成（cases.mjs）：${s.title}\n` + yaml.dump(doc, { lineWidth: 200, noRefs: true }));
   }
   await writeSpec(OUT + '試験仕様書.xlsx', SUITES);
@@ -194,9 +196,15 @@ async function runMidscene(site, s) {
   finally { await browser.close(); }
   // Windows の npx は npx.cmd（シェル経由でないと起動できない）
   const win = process.platform === 'win32';
-  const r = spawnSync(win ? 'npx.cmd' : 'npx', ['midscene', win ? `"${rel(site.out + s.file + '.yaml')}"` : rel(site.out + s.file + '.yaml')], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20, shell: win });
-  if (r.error) throw new Error(`Midscene CLI を起動できません：${r.error.message}`);
-  const log = (r.stdout || '') + (r.stderr || '');
+  const yamlFile = path.relative(ROOT, site.out + s.file + '.yaml');
+  // 非同期で起動する（同じプロセスで動かしている試験対象・スタブがあっても応答できるようにする）
+  const log = await new Promise((resolve, reject) => {
+    const p = spawn(win ? 'npx.cmd' : 'npx', ['midscene', win ? `"${yamlFile}"` : yamlFile], { cwd: ROOT, shell: win, env: { ...process.env, ...midsceneBrowserEnv() } });
+    let out = '';
+    p.stdout.on('data', d => { out += d; }); p.stderr.on('data', d => { out += d; });
+    p.on('error', e => reject(new Error(`Midscene CLI を起動できません：${e.message}`)));
+    p.on('close', () => resolve(out));
+  });
   fs.writeFileSync(site.out + `out/${s.file}.log`, log);
   fs.rmSync(site.out + `out/${s.file}-health.json`, { force: true });
   const summaryPath = log.match(/Summary: (\S+\.json)/)?.[1];
@@ -204,6 +212,13 @@ async function runMidscene(site, s) {
   const tasks = {};
   for (const m of log.matchAll(/^\s+(\S+)\s+([A-Z]+-\d+)_/gm)) tasks[m[2]] = m[1].startsWith('✔') ? 'ok' : 'failed';
   return { report, tasks, error: [...log.matchAll(/Error: (.+)/g)].map(m => m[1]).slice(0, 5) };
+}
+
+// Midscene CLI（puppeteer）にも Playwright と同じブラウザを使わせる：TEST_BROWSER_PATH、または同梱 Chromium（TEST_BROWSER_CHANNEL=chromium）
+function midsceneBrowserEnv() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return {};
+  const exe = process.env.TEST_BROWSER_PATH || (['', 'chromium'].includes(process.env.TEST_BROWSER_CHANNEL) ? bundledChromium() : '');
+  return exe ? { PUPPETEER_EXECUTABLE_PATH: exe } : {};
 }
 
 // Playwright：同じ flow を固定ロケーターで実行。証跡はスクリーンショット＋Trace（npx playwright show-trace で開く）

@@ -2,14 +2,14 @@
 
 ## Project Structure
 
-This repository is a browser screen-testing framework built on Midscene and Playwright. `core/` holds the site-independent framework. `sites/<name>/` holds a site's `app/` (only for demo sites) and `tests/` (`site.mjs` config, `cases.mjs`, `run.mjs`, `baseline.json`, `inventory/`). `sites/coupon-demo/` is a self-contained demo: a points-coupon site with a design document and one deliberate bug. `test/` holds the framework's own tests. The root `crm.yaml` and `crm-bug.yaml` are minimal Midscene YAML demos; `site/` and `site-bug/` contain their HTML fixtures. `midscene_run/`, `sites/*/tests/out/`, `sites/*/tests/evidence/`, `report.html`, `.test-results/`, screenshots, and logs are runtime artifacts, not source.
+This repository is a browser screen-testing framework built on Midscene and Playwright. `core/` holds the site-independent framework. `sites/<name>/` holds a site's `app/` (only for demo sites) and `tests/` (`site.mjs` config, `cases.mjs`, `run.mjs`, `baseline.json`, `inventory/`). `sites/coupon-demo/` is a self-contained demo: a points-coupon site with a design document and one deliberate bug. `sites/legacy-demo/` is a second demo in the style of an older business system (table-layout forms without labels, no `h1`, `alert`/`confirm` dialogs, asynchronous search results) with two deliberate bugs. `test/` holds the framework's own tests. The root `crm.yaml` and `crm-bug.yaml` are minimal Midscene YAML demos; `site/` and `site-bug/` contain their HTML fixtures. `midscene_run/`, `sites/*/tests/out/`, `sites/*/tests/evidence/`, `report.html`, `.test-results/`, screenshots, and logs are runtime artifacts, not source.
 
 | `core/` module | Role |
 |---|---|
 | `runner.mjs` | Build → run → judge → compare with baseline → write results. Its header comment lists every option and `site.mjs` field |
 | `engine-playwright.mjs` | Runs the flows with fixed locators, no model |
-| `locators.mjs` | Prompt-to-locator dictionary and `DEFAULTS` |
-| `steps.mjs` | `go`, `makeState`, `shot` helpers and the generic page-state recorder |
+| `locators.mjs` | Prompt-to-locator dictionary, `DEFAULTS`, and `TABLE_FORM` for forms without labels |
+| `steps.mjs` | `go`, `makeState`, `shot`, `answerDialog` helpers, the generic page-state recorder, and the dialog hook |
 | `check.mjs` | `verify` evaluation and matchers |
 | `health.mjs` | Automatic checks run for every case in Playwright mode |
 | `validate.mjs`, `coverage.mjs` | Static checks of case definitions; design-document coverage |
@@ -21,15 +21,15 @@ This repository is a browser screen-testing framework built on Midscene and Play
 ## Development Commands
 
 - `npm install` installs the dependencies. Playwright uses the installed Chrome or Edge; run `npx playwright install chromium` only when neither is available.
-- `npm test` runs the framework's own tests: unit tests, engine tests against `test/fixture/`, and the coupon-demo suites end to end (buggy and fixed app). It needs a browser and takes about a minute. `npm run test:unit` needs no browser.
-- `npm run demo` (`node sites/coupon-demo/tests/run.mjs --engine playwright`) runs the demo suites without a model; the runner starts `sites/coupon-demo/app/server.mjs` (port 8090) if it is not already running. B-03 is NG and B-04 is ブロック because of the deliberate bug; both are listed in `baseline.json`, so the run exits with code 0. `npm run demo:fixed` runs against the fixed app and writes to `.test-results/fixed/`.
+- `npm test` runs the framework's own tests: unit tests, engine tests against `test/fixture/`, AI-path tests (`--ai-assert`, `--heal`, and the Midscene engine through its CLI) against a mock model server, and both demo sites end to end (buggy and fixed apps). It needs a browser and takes about two minutes. `npm run test:unit` needs no browser.
+- `npm run demo` (`node sites/coupon-demo/tests/run.mjs --engine playwright`) runs the demo suites without a model; the runner starts `sites/coupon-demo/app/server.mjs` (port 8090) if it is not already running. B-03 is NG and B-04 is ブロック because of the deliberate bug; both are listed in `baseline.json`, so the run exits with code 0. `npm run demo:fixed` runs against the fixed app and writes to `.test-results/fixed/`. `npm run demo:legacy` runs the legacy-style demo (port 8095; T-05 and D-02 are the known NG cases).
 - Runner options for any site's `run.mjs` (`--help` prints them): `--build-only` regenerates suite YAML, `試験仕様書.xlsx`, and `観点カバレッジ.md`, and validates the cases, without a browser; `--only 01-login` limits suites; `--eval-only` re-judges existing output; `--retries N` re-runs suites that could not be executed; `--update-baseline` saves the current NG cases as known; `--results <dir>` writes all generated files elsewhere. `--engine midscene` runs the same flows with Midscene AI operations (needs a model). The default engine is `TEST_ENGINE` from `.env`, else `midscene`. `--visual` compares each evidence screenshot with `visual-baseline/` pixel by pixel and lists differences as 注意 (`--update-visual` accepts the current screens); the baseline images are per machine and are not committed. `--ai-assert` adds AI judgement of `aiAssert` steps and `--heal` lets AI operate a step whose locator failed; both need a model.
 - `node core/explore.mjs sites/<name>/tests/site.mjs` logs in, crawls the site, and writes `inventory/inventory.{json,md}`: screens, fields, buttons, tables, messages, and prompt candidates already verified against the page.
 - `node core/new-site.mjs <name> --url <start URL>` scaffolds `sites/<name>/tests/`.
 
 ## Execution Engines
 
-Each site's `cases.mjs` is the single source for both engines; do not fork flows per engine or convert them to `.spec.ts` files. In Playwright mode, the site's locator dictionary (`site.locators`) resolves each `aiTap` / `aiInput` / `aiWaitFor` prompt to a fixed locator, and `core/engine-playwright.mjs` runs the steps. Sites with proper labels, `fieldset`/`legend`, and `h1` can use `DEFAULTS` from `core/locators.mjs` alone (coupon-demo does); other sites add their own patterns in `sites/<name>/tests/locators.mjs`. When a case uses a new prompt wording, add a matching pattern to the site's dictionary. `--build-only` lists any prompt the dictionary cannot resolve. Pass/fail must stay based on DOM values and backend journals (for example WireMock requests or coupon-demo's `/__test/ledger`), because Playwright mode records `aiAssert` as not run (`未実施`).
+Each site's `cases.mjs` is the single source for both engines; do not fork flows per engine or convert them to `.spec.ts` files. In Playwright mode, the site's locator dictionary (`site.locators`) resolves each `aiTap` / `aiInput` / `aiWaitFor` prompt to a fixed locator, and `core/engine-playwright.mjs` runs the steps. Sites with proper labels, `fieldset`/`legend`, and `h1` can use `DEFAULTS` from `core/locators.mjs` alone (coupon-demo does). Table-layout forms without labels add `TABLE_FORM` (legacy-demo does), and anything else goes into site patterns in `site.mjs` or `sites/<name>/tests/locators.mjs`. When a case uses a new prompt wording, add a matching pattern to the site's dictionary. `--build-only` lists any prompt the dictionary cannot resolve. Pass/fail must stay based on DOM values and backend journals (for example WireMock requests or coupon-demo's `/__test/ledger`), because Playwright mode records `aiAssert` as not run (`未実施`).
 
 ## Verdicts and Baseline
 
@@ -45,7 +45,7 @@ Use two-space indentation in YAML and JavaScript. Keep scenario files in YAML an
 
 ## Testing Guidance
 
-For scenario changes, run `--build-only` first to check the case definitions, the generated YAML, and the coverage report. For changes under `core/`, run `npm test` and add a test under `test/` for new behaviour. Run a site's browser suite only when its app, any backend stubs, and required credentials are available. There is no lint command. `.github/workflows/screen-tests.yml` runs `npm test` on Linux and Windows.
+For scenario changes, run `--build-only` first to check the case definitions, the generated YAML, and the coverage report. For changes under `core/`, run `npm test` and add a test under `test/` for new behaviour. Run a site's browser suite only when its app, any backend stubs, and required credentials are available. There is no lint command. `.github/workflows/screen-tests.yml` runs `npm test` on Linux and Windows. The AI paths are tested with `test/fixture/mock-model.mjs`, which answers Midscene's real requests with fixed positions and judgements; this verifies the integration, not a model's accuracy on a given site.
 
 ## Commits and Pull Requests
 

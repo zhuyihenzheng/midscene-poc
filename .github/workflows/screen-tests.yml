@@ -33,14 +33,18 @@ jobs:
       - run: npm test
       # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）
       - run: npm run demo -- --results .test-results/demo
+      - run: npm run demo:legacy -- --results .test-results/legacy
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coupon-demo-${{ matrix.os }}
+          name: demo-results-${{ matrix.os }}
           path: |
             .test-results/demo/report.html
             .test-results/demo/*.md
             .test-results/demo/*.xlsx
             .test-results/demo/out/junit.xml
             .test-results/demo/out/*-trace.zip
+            .test-results/legacy/report.html
+            .test-results/legacy/*.md
+            .test-results/legacy/*.xlsx
           if-no-files-found: warn

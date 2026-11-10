@@ -41,18 +41,26 @@ tasks:
             const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
             const dl = {};
             document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
-            const tableEl = document.querySelector('table');
-            const rows = [...document.querySelectorAll('tbody tr')];
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
             const rowsByKey = {}; const rowActions = {};
             for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
             const extra = {};
             for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
-            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, checks, radios, errors, dl,
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
               alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
-              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...tableEl.querySelectorAll('thead th')].map(txt) : [],
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
               table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
               text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
-              buttons: [...document.querySelectorAll('button, input[type=submit], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
               links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
           })({"extra":{"balance":"#balance"}})
         name: L01
@@ -87,18 +95,26 @@ tasks:
             const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
             const dl = {};
             document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
-            const tableEl = document.querySelector('table');
-            const rows = [...document.querySelectorAll('tbody tr')];
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
             const rowsByKey = {}; const rowActions = {};
             for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
             const extra = {};
             for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
-            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, checks, radios, errors, dl,
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
               alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
-              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...tableEl.querySelectorAll('thead th')].map(txt) : [],
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
               table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
               text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
-              buttons: [...document.querySelectorAll('button, input[type=submit], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
               links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
           })({"extra":{"balance":"#balance"}})
         name: L02
@@ -137,18 +153,26 @@ tasks:
             const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
             const dl = {};
             document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
-            const tableEl = document.querySelector('table');
-            const rows = [...document.querySelectorAll('tbody tr')];
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
             const rowsByKey = {}; const rowActions = {};
             for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
             const extra = {};
             for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
-            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, checks, radios, errors, dl,
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
               alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
-              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...tableEl.querySelectorAll('thead th')].map(txt) : [],
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
               table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
               text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
-              buttons: [...document.querySelectorAll('button, input[type=submit], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
               links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
           })({"extra":{"balance":"#balance"}})
         name: L03
@@ -185,18 +209,26 @@ tasks:
             const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
             const dl = {};
             document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
-            const tableEl = document.querySelector('table');
-            const rows = [...document.querySelectorAll('tbody tr')];
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
             const rowsByKey = {}; const rowActions = {};
             for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
             const extra = {};
             for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
-            return { title: txt(document.querySelector('h1')), path: location.pathname, fields, checks, radios, errors, dl,
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
               alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
-              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...tableEl.querySelectorAll('thead th')].map(txt) : [],
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
               table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
               text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
-              buttons: [...document.querySelectorAll('button, input[type=submit], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
               links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
           })({"extra":{"balance":"#balance"}})
         name: L04

@@ -10,7 +10,7 @@
 // heal:true（要モデル）のとき、辞書で操作できなかったステップを AI で代替し、辞書の修正候補として記録する。
 import fs from 'fs'; import path from 'path';
 import { launch } from './browser.mjs';
-import { continues } from './steps.mjs';
+import { continues, DIALOG_HOOK } from './steps.mjs';
 import { watch } from './health.mjs';
 
 const DEFAULT_TIMEOUT = 15000;
@@ -28,6 +28,9 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, aiAs
     await context.tracing.start({ screenshots: true, snapshots: true, title: suite.file });
     const agent = aiAssert || heal ? await agentFactory(page) : null;
     const monitor = watch(page, site);
+    // ダイアログ：site.dialogs = true なら記録用の差し替えを全ページに入れる。無効のときは OK で閉じ、自動検査の注意に残す
+    if (site.dialogs) { await context.addInitScript(DIALOG_HOOK); await page.evaluate(DIALOG_HOOK).catch(() => {}); }
+    else page.on('dialog', d => { monitor.note('warn', '想定外のダイアログ', `${d.type()}：${d.message()}（site.dialogs = true で記録・判定できる）`); d.accept().catch(() => {}); });
     const ctx = { site, out, shots, shotsDir, agent, aiAssert, heal, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
     let prev = null;
     for (const c of suite.cases) {

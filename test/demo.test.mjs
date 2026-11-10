@@ -46,3 +46,38 @@ test('画面採取：ログイン後にリンクと指定した操作をたど�
   assert.ok(exchange.prompts.some(p => p.ok && p.kind === 'aiTap' && p.prompt === '受取方法の「メール」ラジオボタン'));
   assert.match(fs.readFileSync(path.join(out, 'inventory.md'), 'utf8'), /メッセージ（field・`#qty-error`）：枚数を入力してください。/);
 });
+
+// ---------- レガシー画面のデモ（label・h1 なし、ダイアログ、非同期の検索結果） ----------
+function legacy(env, ...args) {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-demo-'));
+  const r = spawnSync(process.execPath, ['sites/legacy-demo/tests/run.mjs', '--engine', 'playwright', '--results', out, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env } });
+  const file = path.join(out, 'out', 'summary.json');
+  return { code: r.status, log: r.stdout + r.stderr, out, summary: fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null };
+}
+
+test('レガシー画面・不具合版：仕込んだ 2 件（ダイアログの出方・金額の表示形式）だけを不一致として検出する', () => {
+  const r = legacy({ LEGACY_DEMO_PORT: '8097', LEGACY_DEMO_FIXED: '' });
+  assert.equal(r.code, 0, r.log);
+  const s = r.summary;
+  assert.deepEqual([s.total, s.ok, s.ng, s.blocked, s.known, s.fresh], [20, 18, 2, 0, ['T-05', 'D-02'], []]);
+  assert.deepEqual(s.cases.filter(c => c.verdict === 'NG').map(c => c.cause), ['不一致', '不一致']);
+  const draft = fs.readFileSync(path.join(r.out, '不具合票ドラフト.md'), 'utf8');
+  assert.match(draft, /\| 範囲外のエラー（確認ダイアログは出ない） \| \["数量は1〜99の範囲で入力してください。"\] \| \["登録します。よろしいですか？"\] \|/);
+  assert.match(draft, /\| 金額 \| 240,000 円 \| 240000 円 \|/);
+});
+
+test('レガシー画面・修正版：全件 OK', () => {
+  const r = legacy({ LEGACY_DEMO_PORT: '8098', LEGACY_DEMO_FIXED: '1' });
+  assert.equal(r.code, 0, r.log);
+  assert.deepEqual([r.summary.ok, r.summary.total, r.summary.resolved], [20, 20, ['T-05', 'D-02']]);
+});
+
+test('レガシー画面の画面採取：label のない入力欄を項目名のセルから読み、表形式フォームの辞書で解決できる指示文候補を出す', () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'inventory-'));
+  const r = spawnSync(process.execPath, ['core/explore.mjs', 'sites/legacy-demo/tests/site.mjs', '--out', out], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, LEGACY_DEMO_PORT: '8099' } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const pages = JSON.parse(fs.readFileSync(path.join(out, 'inventory.json'), 'utf8'));
+  const form = pages.find(p => p.h1 === '受注登録');
+  assert.deepEqual(form.fields.map(f => f.label), ['顧客名', '商品', '数量', '備考']);
+  for (const prompt of ['顧客名の入力欄', '商品の選択欄', '至急のチェックボックス', '「登録」ボタン']) assert.ok(form.prompts.some(p => p.ok && p.prompt === prompt), prompt);
+});

@@ -22,6 +22,8 @@ npm run demo
 
 执行后打开 `sites/coupon-demo/tests/report.html` 看结果。
 
+还有第二个演示站点 `npm run demo:legacy`：模仿老式业务系统的受注管理画面（表格布局的表单、没有 label 和 h1、用 `alert` / `confirm` 弹窗报错和确认、检索结果异步显示），20 个用例，埋了 2 个缺陷。它用来说明这类画面也能测。
+
 没有 Chrome 和 Edge 时，执行 `npx playwright install chromium`，并把 `.env` 里的 `TEST_BROWSER_CHANNEL` 改成 `chromium`。
 
 ## 输出
@@ -57,6 +59,7 @@ npm run demo
 
 ```bash
 npm run demo                                        # 执行演示站点
+npm run demo:legacy                                 # 执行老式系统风格的演示站点
 npm run demo:fixed                                  # 用修好缺陷的演示站点执行（结果在 .test-results/fixed/）
 node sites/<站点>/tests/run.mjs --help              # 所有选项
 node sites/<站点>/tests/run.mjs --build-only        # 不开浏览器：检查用例写法、生成仕様書和覆盖率
@@ -79,6 +82,8 @@ npm test                                            # 框架自身的测试
 - `--engine midscene`：全部操作由 AI 完成；
 - `--engine playwright --ai-assert`：操作用 Playwright，只有 `aiAssert` 的目视判断交给 AI；
 - `--engine playwright --heal`：定位器失效的步骤由 AI 代为操作，并在结果里列出需要修改的辞典条目。
+
+这三条路径在 `npm test` 里都用一个模拟的模型服务跑过（真实的 Midscene 库和 CLI，模型的回答是预先写好的）。模型在你的画面上认得准不准，要用真实模型试过才知道。
 
 ## CI
 
