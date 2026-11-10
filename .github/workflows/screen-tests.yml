@@ -31,6 +31,14 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      # 失敗時：どの試験がなぜ落ちたかを短くまとめて出す（全体のログは長いため）
+      - name: Failure digest
+        if: failure()
+        shell: bash
+        run: |
+          for f in unit engine ai demo; do
+            node --test test/$f.test.mjs > digest.log 2>&1 || { echo "=== test/$f.test.mjs"; grep -E "^not ok|^  error:|^    [+-] |Error|failed|✖|NG（|exitCode|browser|executable" digest.log | cut -c1-300 | head -70; }
+          done
       # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）
       - run: npm run demo -- --results .test-results/demo
       - run: npm run demo:legacy -- --results .test-results/legacy
