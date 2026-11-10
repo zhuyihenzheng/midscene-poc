@@ -209,9 +209,23 @@ async function runMidscene(site, s) {
   fs.rmSync(site.out + `out/${s.file}-health.json`, { force: true });
   const summaryPath = log.match(/Summary: (\S+\.json)/)?.[1];
   const report = summaryPath ? path.resolve(ROOT, path.dirname(summaryPath), JSON.parse(fs.readFileSync(path.resolve(ROOT, summaryPath), 'utf8')).results[0].report) : null;
-  const tasks = {};
-  for (const m of log.matchAll(/^\s+(\S+)\s+([A-Z]+-\d+)_/gm)) tasks[m[2]] = m[1].startsWith('✔') ? 'ok' : 'failed';
+  const tasks = parseMidsceneTasks(log);
   return { report, tasks, error: [...log.matchAll(/Error: (.+)/g)].map(m => m[1]).slice(0, 5) };
+}
+
+// Midscene CLI のログからタスク（ケース）ごとの結果を拾う。CLI は同じタスクを「◌ 実行中」→「✔ 成功／✘ 失敗」の順に出すが、
+// 標準出力と標準エラーを合わせて読むと行の順序は保証されないため、順序によらず「失敗の印があれば failed、成功の印があれば ok」とする。
+// どちらの印もないタスク（実行中のまま終わった・未実行）は結果に含めない（判定は記録値だけで行う）
+export function parseMidsceneTasks(log) {
+  const ok = new Set(); const failed = new Set();
+  for (const m of log.matchAll(/^\s*(\S+)\s+([A-Z]+-\d+)_/gm)) {
+    if (/^[✘✖✗×]/.test(m[1])) failed.add(m[2]);
+    else if (/^[✔✓]/.test(m[1])) ok.add(m[2]);
+  }
+  const tasks = {};
+  for (const id of ok) tasks[id] = 'ok';
+  for (const id of failed) tasks[id] = 'failed';
+  return tasks;
 }
 
 // Midscene CLI（puppeteer）にも Playwright と同じブラウザを使わせる：TEST_BROWSER_PATH、または同梱 Chromium（TEST_BROWSER_CHANNEL=chromium）

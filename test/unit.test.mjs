@@ -12,6 +12,7 @@ import { TABLE_FORM } from '../core/locators.mjs';
 import { SUITES as LEGACY } from '../sites/legacy-demo/tests/cases.mjs';
 import legacySite from '../sites/legacy-demo/tests/site.mjs';
 import { healthItems } from '../core/health.mjs';
+import { parseMidsceneTasks } from '../core/runner.mjs';
 import { SUITES as DEMO } from '../sites/coupon-demo/tests/cases.mjs';
 import demoSite from '../sites/coupon-demo/tests/site.mjs';
 
@@ -139,4 +140,12 @@ test('レガシー画面のデモ：表形式フォームの辞書で全指示�
   assert.deepEqual([rows.filter(r => !r.cells?.length && !r.cases.length), unfounded], [[], []]);
   const loc = createLocators(TABLE_FORM, DEFAULTS);
   for (const [k, p] of [['aiInput', '顧客名の入力欄'], ['aiTap', '至急のチェックボックス'], ['aiTap', '区分の「法人」ラジオボタン'], ['aiTap', '「登録」ボタン']]) assert.doesNotThrow(() => loc.resolve(k, p), p);
+});
+
+test('Midscene CLI のログ：行の順序によらず、タスクごとの成功・失敗を拾う', () => {
+  // 標準出力と標準エラーが入れ替わって「実行中」の行が後に来ても、成功を失敗と取り違えない
+  const log = ['  ✔︎ A-01_成功 ', '  ✘ A-02_失敗 (task 1/4)', '  ◌ A-01_成功 ', '  ◌ A-02_失敗 ', '  ◌ A-03_未実行 '].join('\n');
+  assert.deepEqual(parseMidsceneTasks(log), { 'A-01': 'ok', 'A-02': 'failed' });
+  assert.deepEqual(parseMidsceneTasks('  ◌ A-01_x \n  ✔︎ A-01_x \n  ✘ A-01_x (task 2/3)'), { 'A-01': 'failed' });
+  assert.deepEqual(parseMidsceneTasks(''), {});
 });
