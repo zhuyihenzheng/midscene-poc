@@ -1,4 +1,5 @@
 // ブラウザを使う試験：Playwright エンジン・判定・基準比較・出力を、試験用の小さなサイトで確かめる
+import './fixture/quiet.mjs';
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs';
 import { runTests } from '../core/runner.mjs';

@@ -1,4 +1,5 @@
 // ブラウザを使わない単体試験：node --test test/unit.test.mjs
+import './fixture/quiet.mjs';
 import test from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
 import { ROOT, here, rel } from '../core/paths.mjs';

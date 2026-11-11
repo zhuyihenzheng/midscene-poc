@@ -19,6 +19,20 @@ import { watch } from './health.mjs';
 
 const DEFAULT_TIMEOUT = 15000;
 
+// 別ウィンドウの開閉を確実に追うための目印（全ページの読み込み時に入れる）。
+// 開く：window.open の呼び出しと target=_blank のリンクのクリックで __popupExpected を立てる → エンジンは新しいウィンドウが現れるまで待つ
+// 閉じる：window.close を 1 拍遅らせ、その前に __closing を立てる → エンジンはウィンドウが閉じるまで待ってから次のステップへ進む
+// （待たないと、遅い環境で次のステップが古いウィンドウ・閉じかけのウィンドウに対して実行される）
+function windowHook() {
+  if (window.__windowHook) return;
+  window.__windowHook = true;
+  const open = window.open; const close = window.close;
+  window.open = function (...a) { window.__popupExpected = true; return open.apply(this, a); };
+  window.close = function () { window.__closing = true; setTimeout(() => close.call(window), 0); };
+  document.addEventListener('click', e => { if (e.target?.closest?.('a[target=_blank], a[target=_new], area[target=_blank]')) window.__popupExpected = true; }, true);
+}
+const WINDOW_HOOK = `(${windowHook.toString()})()`;
+
 // site：{ url, viewport, login(browser, { viewport }) → { context, page }, locators: { resolve }, settle?, health? }
 // viewport は Midscene 版と同じにする（枠内表示・スクロール系の判定が画面サイズに依存するため）
 export async function runSuite(suite, { site, outFile, shotsDir, traceFile, downloadsDir = path.join(shotsDir, 'downloads'), aiAssert = false, heal = false, ai = false, visual = false, agentFactory = aiAgent, log = console.log }) {
@@ -39,6 +53,7 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, down
     const onDialog = p => p.on('dialog', d => { monitor.note('warn', '想定外のダイアログ', `${d.type()}：${d.message()}（site.dialogs = true で記録・判定できる）`); d.accept().catch(() => {}); });
     if (site.dialogs) { await context.addInitScript(DIALOG_HOOK); await page.evaluate(DIALOG_HOOK).catch(() => {}); }
     else onDialog(page);
+    await context.addInitScript(WINDOW_HOOK); await page.evaluate(WINDOW_HOOK).catch(() => {});
     // 操作対象のウィンドウ：最後に開いたもの。閉じたら 1 つ前へ戻る
     const pages = [page];
     // 閉じた直後は close イベントの処理より先に次のステップへ進むことがあるため、閉じたウィンドウは飛ばす
@@ -110,7 +125,15 @@ async function step(page, st, ctx) {
       }
     }
     // クリックで別ウィンドウが開いた場合は、そのウィンドウの読み込みを待つ
-    if (kind === 'aiTap') { await page.waitForTimeout(50).catch(() => {}); const top = ctx.pages.findLast(p => !p.isClosed()) ?? ctx.pages[0]; if (top !== page) return ctx.settle(top); }
+    if (kind === 'aiTap') {
+      const before = ctx.pages.length;
+      // 目印を読む。読めない（遷移中・閉じた）場合、別ウィンドウなら閉じかけの可能性があるので短く待つ
+      const flag = await page.evaluate(() => { const f = { popup: !!window.__popupExpected, closing: !!window.__closing }; window.__popupExpected = false; return f; }).catch(() => null);
+      if (flag?.popup) for (let i = 0; i < 200 && ctx.pages.length <= before && !ctx.pages.some((p, n) => n >= before); i++) await new Promise(r => setTimeout(r, 25));
+      if (!page.isClosed() && (flag?.closing || (!flag && page !== ctx.pages[0]))) await page.waitForEvent('close', { timeout: flag?.closing ? 5000 : 500 }).catch(() => {});
+      const top = ctx.pages.findLast(p => !p.isClosed()) ?? ctx.pages[0];
+      if (top !== page) return ctx.settle(top);
+    }
     return ctx.settle(page);
   }
   if ('upload' in st) {

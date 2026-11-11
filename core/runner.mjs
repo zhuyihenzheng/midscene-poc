@@ -226,6 +226,7 @@ async function runMidscene(site, s) {
   // ケースが 1 件でも始まっていれば、失敗は結果として扱い、やり直さない
   let log = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
+    if (attempt > 1) await new Promise(r => setTimeout(r, attempt * 2000)); // 一時的な失敗が収まるのを待つ
     const out = await launchCli();
     log += (attempt > 1 ? `\n--- 起動のやり直し ${attempt} 回目 ---\n` : '') + out;
     if (!midsceneStartupFailed(out)) { log = attempt > 1 ? log : out; break; }

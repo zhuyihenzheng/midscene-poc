@@ -1,5 +1,6 @@
 // AI を使う経路の試験：模型の代わりをするサーバー（test/fixture/mock-model.mjs）を相手に、本物の Midscene ライブラリを通して
 // --ai-assert・--heal・Midscene エンジン（YAML を CLI で実行）を端から端まで確かめる。
+import './fixture/quiet.mjs';
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs';
 import { runTests } from '../core/runner.mjs';

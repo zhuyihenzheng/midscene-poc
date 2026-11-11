@@ -1,5 +1,6 @@
 // エージェントをモデルにする中継サーバー（core/agent-model.mjs）の試験。
 // Midscene はモデルの設定をプロセス内で 1 回だけ読むため、模型サーバーを使う ai.test.mjs とは別のファイル（別プロセス）にしてある。
+import './fixture/quiet.mjs';
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
 import { startAgentModel, parseRequest, formatAnswer, imageSize } from '../core/agent-model.mjs';
