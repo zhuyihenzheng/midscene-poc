@@ -7,8 +7,12 @@ const page = (title, body) => `<!doctype html><html lang="ja"><head><meta charse
 export async function startFixture() {
   let flaky = 0; const look = { color: '#1d4ed8' };
   const slow = { active: 0, max: 0 }; // /slow を同時に処理している数（並列実行の確認用）
+  const requests = []; // 直近の要求の記録（失敗時の手がかり）：時刻・メソッド・パス・応答が最後まで送れたか
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
+    const rec = { t: new Date().toISOString().slice(11, 23), m: req.method, p: req.url, ua: /HeadlessChrome\/(\d+)/.exec(req.headers['user-agent'] ?? '')?.[1] ?? '-', end: 'open' };
+    requests.push(rec); if (requests.length > 60) requests.shift();
+    res.on('finish', () => { rec.end = 'sent ' + res.statusCode; }); res.on('close', () => { if (rec.end === 'open') rec.end = 'closed before sent'; });
     const html = (s, status = 200) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' }); res.end(s); };
     switch (url.pathname) {
       case '/': return html(page('ホーム', `<form action="/saved"><p><label for="name">名前</label> <input id="name" name="name"></p>
@@ -44,7 +48,8 @@ export async function startFixture() {
     }
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
-  return { url: `http://127.0.0.1:${server.address().port}/`, look, slow, close: () => new Promise(r => server.close(r)) };
+  server.on('clientError', e => requests.push({ t: new Date().toISOString().slice(11, 23), m: 'clientError', p: e.code ?? e.message, end: '-' }));
+  return { url: `http://127.0.0.1:${server.address().port}/`, look, slow, requests, close: () => new Promise(r => server.close(r)) };
 }
 
 // 結果の出力先を一時ディレクトリにしたサイト設定
