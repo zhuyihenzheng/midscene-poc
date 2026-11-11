@@ -12,7 +12,7 @@ import { TABLE_FORM } from '../core/locators.mjs';
 import { SUITES as LEGACY } from '../sites/legacy-demo/tests/cases.mjs';
 import legacySite from '../sites/legacy-demo/tests/site.mjs';
 import { healthItems } from '../core/health.mjs';
-import { parseMidsceneTasks } from '../core/runner.mjs';
+import { parseMidsceneTasks, midsceneStartupFailed } from '../core/runner.mjs';
 import { SUITES as DEMO } from '../sites/coupon-demo/tests/cases.mjs';
 import demoSite from '../sites/coupon-demo/tests/site.mjs';
 
@@ -148,4 +148,8 @@ test('Midscene CLI のログ：行の順序によらず、タスクごとの成�
   assert.deepEqual(parseMidsceneTasks(log), { 'A-01': 'ok', 'A-02': 'failed' });
   assert.deepEqual(parseMidsceneTasks('  ◌ A-01_x \n  ✔︎ A-01_x \n  ✘ A-01_x (task 2/3)'), { 'A-01': 'failed' });
   assert.deepEqual(parseMidsceneTasks(''), {});
+  // どのケースも始まらないまま失敗した場合だけ「起動時の失敗」（やり直しの対象）とする
+  assert.equal(midsceneStartupFailed('  ◌ A-01_x \nError: net::ERR_ABORTED at http://127.0.0.1:1/\nYAML execution failed:\n   Failed: 1'), true);
+  assert.equal(midsceneStartupFailed('  ✘ A-01_x (task 1/4)\nYAML execution failed:\n   Failed: 1'), false);
+  assert.equal(midsceneStartupFailed('  ✔︎ A-01_x \n   Failed: 0'), false);
 });

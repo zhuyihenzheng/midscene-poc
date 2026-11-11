@@ -215,19 +215,32 @@ async function runMidscene(site, s) {
   const win = process.platform === 'win32';
   const yamlFile = path.relative(ROOT, site.out + s.file + '.yaml');
   // 非同期で起動する（同じプロセスで動かしている試験対象・スタブがあっても応答できるようにする）
-  const log = await new Promise((resolve, reject) => {
+  const launchCli = () => new Promise((resolve, reject) => {
     const p = spawn(win ? 'npx.cmd' : 'npx', ['midscene', win ? `"${yamlFile}"` : yamlFile], { cwd: ROOT, shell: win, env: { ...process.env, ...midsceneBrowserEnv() } });
     let out = '';
     p.stdout.on('data', d => { out += d; }); p.stderr.on('data', d => { out += d; });
     p.on('error', e => reject(new Error(`Midscene CLI を起動できません：${e.message}`)));
     p.on('close', () => resolve(out));
   });
+  // 最初の画面を開くところで失敗し、どのケースも始まらなかった場合（net::ERR_ABORTED など起動時の一時的な失敗）は、起動からやり直す。
+  // ケースが 1 件でも始まっていれば、失敗は結果として扱い、やり直さない
+  let log = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const out = await launchCli();
+    log += (attempt > 1 ? `\n--- 起動のやり直し ${attempt} 回目 ---\n` : '') + out;
+    if (!midsceneStartupFailed(out)) { log = attempt > 1 ? log : out; break; }
+  }
   fs.writeFileSync(site.out + `out/${s.file}.log`, log);
   fs.rmSync(site.out + `out/${s.file}-health.json`, { force: true });
-  const summaryPath = log.match(/Summary: (\S+\.json)/)?.[1];
+  const summaryPath = [...log.matchAll(/Summary: (\S+\.json)/g)].pop()?.[1];
   const report = summaryPath ? path.resolve(ROOT, path.dirname(summaryPath), JSON.parse(fs.readFileSync(path.resolve(ROOT, summaryPath), 'utf8')).results[0].report) : null;
-  const tasks = parseMidsceneTasks(log);
+  const tasks = parseMidsceneTasks(log.split('--- 起動のやり直し').pop());
   return { report, tasks, error: [...log.matchAll(/Error: (.+)/g)].map(m => m[1]).slice(0, 5) };
+}
+
+// Midscene CLI が、どのケースの結果も出さないまま失敗で終わったか（起動時の失敗）
+export function midsceneStartupFailed(log) {
+  return Object.keys(parseMidsceneTasks(log)).length === 0 && /YAML execution failed|Failed: [1-9]/.test(log);
 }
 
 // Midscene CLI のログからタスク（ケース）ごとの結果を拾う。CLI は同じタスクを「◌ 実行中」→「✔ 成功／✘ 失敗」の順に出すが、
