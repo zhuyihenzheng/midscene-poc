@@ -69,7 +69,8 @@ function reportConfig(site) { return { title: `${site.name} 画面試験 結果�
 function engineLine(site, rs, runs) {
   const aiUsed = site.suites.some(s => runs[s.file]?.engine === 'playwright' && runs[s.file].aiAssert);
   const engines = [...new Set(rs.map(r => r.engine))];
-  return { aiUsed, engines, pw: engines.includes('playwright'), text: engines.map(e => e === 'playwright'
+  const name = { playwright: 'Playwright', ai: 'AI 操作（Midscene ＋ Playwright）', midscene: 'Midscene' };
+  return { aiUsed, engines, name, pw: engines.includes('playwright'), text: engines.map(e => e === 'ai' ? `Playwright ${engineVersion('playwright')} のブラウザ上で Midscene ${engineVersion('@midscene/web')} ＋ ${process.env.MIDSCENE_MODEL_NAME} が操作（aiTap/aiInput/aiWaitFor）` : e === 'playwright'
     ? `Playwright ${engineVersion('playwright')}（固定ロケーター・モデル不要）${aiUsed ? '＋ aiAssert のみ AI（' + process.env.MIDSCENE_MODEL_NAME + '）' : '、aiAssert は未実施'}`
     : `Midscene ${engineVersion('@midscene/web')} ＋ ${process.env.MIDSCENE_MODEL_NAME}、ブラウザ操作は AI（aiTap/aiInput）`).join('／') };
 }
@@ -91,7 +92,7 @@ function diffLines(sum) {
 
 export function writeMd(file, site, rs, runs, sum) {
   const report = reportConfig(site); const eng = engineLine(site, rs, runs);
-  const lines = [`# ${report.title}（${eng.engines.map(e => e === 'playwright' ? 'Playwright' : 'Midscene').join('＋')}）`, '',
+  const lines = [`# ${report.title}（${eng.engines.map(e => eng.name[e]).join('＋')}）`, '',
     `- 実施日：${new Date().toLocaleDateString('sv-SE')}　対象：${report.target()}`,
     `- 実行：${eng.text}、合否は ${report.basis}で判定`,
     `- 結果：${summaryLine(sum)}`,
@@ -111,7 +112,7 @@ export function writeMd(file, site, rs, runs, sum) {
     '- **ブロック**：前のケースが中断したため実行していない。前のケースの解決後に再実行する。',
     '- **基準比**：`baseline.json`（既知の NG）と違う結果だけが終了コード 1 になる。', '',
     ...report.sections({ pw: eng.pw, aiUsed: eng.aiUsed }));
-  const reportLines = site.suites.filter(s => runs[s.file]).map(s => `- ${runs[s.file].engine === 'playwright' ? 'Playwright Trace' : 'Midscene レポート'} ${s.file}（${s.title}・${runs[s.file].sec}s）：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
+  const reportLines = site.suites.filter(s => runs[s.file]).map(s => `- ${runs[s.file].engine !== 'midscene' ? 'Playwright Trace' : 'Midscene レポート'} ${s.file}（${s.title}・${runs[s.file].sec}s）：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
   const at = lines.indexOf('## 再実行');
   if (at > 0) lines.splice(at - 1, 0, ...reportLines); else lines.push('', ...reportLines);
   fs.writeFileSync(file, lines.join('\n') + '\n');
@@ -131,7 +132,7 @@ export function writeBugDrafts(file, site, rs, evidence, runs) {
       '### 期待結果（設計書）', '', ...r.c.expect.split('\n'), '', '### 実際の結果', '',
       '| 確認観点 | 期待値 | 実測値 |', '|---|---|---|', ...fails.map(i => `| ${i.desc} | ${(i.expected ?? '（期待結果のとおり）').replace(/\|/g, '｜')} | ${String(i.actual).replace(/\|/g, '｜')} |`), '',
       ...(r.error ? [`実行時のエラー：${r.error}`, ''] : []),
-      '### 証跡', '', ...(evidence[r.c.id] ?? []).map(e => `- ${e.label}：${e.file}`), ...(runs[r.suite.file]?.report ? [`- ${r.engine === 'playwright' ? 'Playwright Trace' : 'Midscene レポート'}：${rel(runs[r.suite.file].report)}`] : []), '',
+      '### 証跡', '', ...(evidence[r.c.id] ?? []).map(e => `- ${e.label}：${e.file}`), ...(runs[r.suite.file]?.report ? [`- ${r.engine !== 'midscene' ? 'Playwright Trace' : 'Midscene レポート'}：${rel(runs[r.suite.file].report)}`] : []), '',
       '### 再現', '', '```bash', `node ${rel(site.dir + 'run.mjs').slice(2)} --engine ${r.engine} --only ${r.suite.file}`, '```', '');
   }
   fs.writeFileSync(file, L.join('\n'));

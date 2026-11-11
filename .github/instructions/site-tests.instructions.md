@@ -57,8 +57,8 @@ const state = makeState({ extra: { balance: '#balance' } });
 | `{ aiWaitFor: '<prompt>', timeout: 15000 }` | Wait until a screen or message appears (or disappears) |
 | `{ aiAssert: '<prompt>', name: 'X01_ai' }` | AI visual judgement, for reference only. Verify it with `['AI：…', 'X01_ai', AI]` |
 | `{ sleep: ms }` | Only when a value must be recorded before a wait that may fail (see B-03 in coupon-demo) |
-| `upload('<aiInput prompt>', 'files/sample.pdf')` | Set a file on a file input (path relative to the site's `tests/`). Playwright engine only |
-| `download('<aiTap prompt>', 'X01')` | Click, wait for the download, and record `{ filename, size, text, lines }` into `X01`. Playwright engine only |
+| `upload('<aiInput prompt>', 'files/sample.pdf')` | Set a file on a file input (path relative to the site's `tests/`). Not available in the Midscene CLI engine |
+| `download('<aiTap prompt>', 'X01')` | Click, wait for the download, and record `{ filename, size, text, lines }` into `X01`. Not available in the Midscene CLI engine |
 | `answerDialog('cancel')` | Answer the next `confirm` / `prompt` with cancel (or pass a string to type into a `prompt`). Applies to one dialog. Needs `site.dialogs = true` |
 | `shot('<ID 説明>')` | Evidence screenshot. The label starts with the case ID |
 
@@ -86,8 +86,8 @@ Pass site-specific selectors to `makeState({ titleSelector, errorSelector, alert
 
 ### Frames, new windows, files
 
-- **iframe**: wrap the dictionary with `inFrame('<iframe selector>', DEFAULTS)` so prompts resolve inside the frame, and record with `makeState({ frame: '<iframe selector>' })` (same-origin frames).
-- **New window** (`window.open`, `target=_blank`): in the Playwright engine, steps after the click operate on the new window; when it closes, steps return to the opener. An independent case (`go()`) starts in the first window and closes leftovers. The Midscene engine stays in the first window.
+- **iframe**: wrap the dictionary with `inFrame('<iframe selector>', DEFAULTS)` so prompts resolve inside the frame, and record with `makeState({ frame: '<iframe selector>' })`. The Playwright and AI engines evaluate inside the frame, so cross-origin frames work; the Midscene CLI engine reads same-origin frames only.
+- **New window** (`window.open`, `target=_blank`): in the Playwright and AI engines (`--engine playwright` / `ai`), steps after the click operate on the new window; when it closes, steps return to the opener. An independent case (`go()`) starts in the first window and closes leftovers. The Midscene CLI engine stays in the first window.
 - **Files**: `upload()` and `download()` (see the step table). Verify a download with `['ファイル名', 'X01.filename', 'orders.csv']` and `['行', 'X01.lines', [...]]`.
 
 ### Dialogs

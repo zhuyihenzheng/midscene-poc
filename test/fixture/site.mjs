@@ -27,6 +27,8 @@ export async function startFixture() {
       case '/styled': return html(page('見た目', `<p style="background:${look.color};color:#fff;padding:40px">お知らせ</p><p id="clock">${Date.now()}</p>`));
       // iframe の中の画面
       case '/frame': return html(page('枠つき', '<iframe name="main" src="/frame-inner" style="width:600px;height:300px"></iframe>'));
+      // オリジンの違う iframe（src に別ポートのサーバーを指定する）
+      case '/xframe': return html(page('別オリジンの枠', `<iframe name="main" src="${url.searchParams.get('src')}" style="width:600px;height:300px"></iframe>`));
       case '/frame-inner': return html(page('検索', `<form action="/frame-inner"><p><label for="q">検索語</label> <input id="q" name="q" value="${url.searchParams.get('q') ?? ''}"></p><button type="submit">検索</button></form>${url.searchParams.get('q') ? `<p role="status">「${url.searchParams.get('q')}」の検索結果：3 件</p>` : ''}`));
       // 別ウィンドウで選ぶ画面（選ぶと元の画面の入力欄に反映して閉じる）
       case '/popup': return html(page('注文', `<p><label for="cust">顧客</label> <input id="cust" name="cust" readonly></p><button type="button" onclick="window.open('/popup-list', 'sub', 'width=500,height=400')">顧客選択</button>`));

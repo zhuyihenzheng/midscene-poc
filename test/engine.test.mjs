@@ -191,3 +191,17 @@ test('--workers：データを共有しないサイトはスイートを並列�
   const refused = await run(makeSite(fx.url, suites.slice(0, 1)), '--workers', '4');
   assert.deepEqual(refused.summary.cases.map(c => c.verdict), ['OK']);
 });
+
+test('オリジンの違う iframe：枠の中で直接実行して画面状態を記録する', async () => {
+  const other = await startFixture(); // 別ポート＝別オリジン
+  try {
+    const frameState = makeState({ frame: 'iframe[name=main]' });
+    const site = makeSite(fx.url, [{ file: '01-xframe', title: '別オリジンの枠', cases: [
+      { ...base, id: 'X-01', title: '別オリジンの枠の中で検索', flow: [{ goto: '/xframe?src=' + encodeURIComponent(other.url + 'frame-inner') }, { aiWaitFor: '「検索」画面が表示されている', timeout: 5000 },
+        { aiInput: '検索語の入力欄', value: 'マウス' }, { aiTap: '「検索」ボタン' }, { aiWaitFor: '「「マウス」の検索結果：3 件」と表示されている', timeout: 5000 }, frameState('X01')],
+        verify: [['枠の中の見出し', 'X01.title', '検索'], ['枠の中の結果', 'X01.status', '「マウス」の検索結果：3 件'], ['枠の中の URL', 'X01.path', '/frame-inner']] }] }],
+      { locators: createLocators(inFrame('iframe[name=main]', DEFAULTS)) });
+    const r = await run(site);
+    assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []]]);
+  } finally { await other.close(); }
+});

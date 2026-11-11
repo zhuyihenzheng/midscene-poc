@@ -82,11 +82,14 @@ npm test                                            # 框架自身的测试
 
 在 `.env` 里填 `MIDSCENE_MODEL_*`（OpenAI 兼容接口，本地 LM Studio 或云端 API 都可以），然后：
 
-- `--engine midscene`：全部操作由 AI 完成；
+- `--engine ai`：在同一个 Playwright 浏览器里，由 AI 看画面完成全部操作。弹出窗口、文件上传下载、弹窗、自动检查、截图对比都和 Playwright 引擎一样可用；
+- `--engine midscene`：把用例转成 YAML 交给 Midscene CLI 执行（只在第一个窗口里操作，不能上传下载）；
 - `--engine playwright --ai-assert`：操作用 Playwright，只有 `aiAssert` 的目视判断交给 AI；
 - `--engine playwright --heal`：定位器失效的步骤由 AI 代为操作，并在结果里列出需要修改的辞典条目。
 
-这三条路径在 `npm test` 里都用一个模拟的模型服务跑过（真实的 Midscene 库和 CLI，模型的回答是预先写好的）。用真实视觉模型跑 Midscene 引擎的记录见 [docs/ai-engine-evidence.md](docs/ai-engine-evidence.md)。你自己的模型在你的画面上认得准不准，仍然要实际试过才知道。
+用 AI 之前，先用 `node core/model-eval.mjs sites/<站点>/tests/site.mjs` 量一下你的模型在你的画面上的定位命中率：它让模型逐个定位画面采集得到的指示文，再和辞典算出的真实位置比对，只打开画面、不做任何操作。
+
+这几条路径在 `npm test` 里都用一个模拟的模型服务跑过（真实的 Midscene 库和 CLI，模型的回答是预先写好的）。用真实视觉模型跑 Midscene 引擎、以及 26 道定位题的评测记录见 [docs/ai-engine-evidence.md](docs/ai-engine-evidence.md)。你自己的模型在你的画面上认得准不准，仍然要实际试过才知道。
 
 ### 没有模型 API 时：让 Claude Code / Copilot 充当模型
 

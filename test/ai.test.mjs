@@ -3,10 +3,12 @@
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs';
 import { runTests } from '../core/runner.mjs';
-import { makeState, go, shot, answerDialog } from '../core/steps.mjs';
+import { makeState, go, shot, answerDialog, upload, download } from '../core/steps.mjs';
+import path from 'path'; import { fileURLToPath } from 'url';
 import { AI } from '../core/check.mjs';
 import { startFixture, makeSite, base } from './fixture/site.mjs';
 import { startMockModel } from './fixture/mock-model.mjs';
+import { evaluateModel, toMarkdown } from '../core/model-eval.mjs';
 
 const state = makeState();
 const screen = t => ({ aiWaitFor: `「${t}」画面が表示されている`, timeout: 8000 });
@@ -82,4 +84,60 @@ test('Midscene エンジン：確認ダイアログの文言を記録し、キ�
   const r = await runTests(site, ['--engine', 'midscene'], { setExitCode: false });
   const log = cliErrors(site, '01-dialog');
   assert.deepEqual(r.summary.cases.map(c => c.verdict), ['OK', 'OK'], log);
+});
+
+test('--engine ai：同じブラウザ上で AI が操作する。別ウィンドウ・アップロード・ダウンロードも AI 操作で通る', async () => {
+  const sample = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'upload-sample.txt');
+  let context;
+  const site = makeSite(fx.url, [{ file: '01-ai-engine', title: 'AI 操作', cases: [
+    { ...base, id: 'P-01', title: '別ウィンドウで顧客を選ぶ', flow: [...go('/popup', '注文'), { aiTap: '「顧客選択」ボタン' }, screen('顧客選択'), state('P01_sub'), { aiTap: '「北山電機」の行の「選択」ボタン' }, screen('注文'), state('P01')],
+      verify: [['別ウィンドウの見出し', 'P01_sub.title', '顧客選択'], ['選んだ顧客が元の画面に反映される', 'P01.fields.cust.value', '北山電機']] },
+    { ...base, id: 'U-01', title: 'アップロード', flow: [...go('/files', 'ファイル'), upload('添付ファイルの入力欄', sample), { aiTap: '「アップロード」ボタン' }, screen('アップロード完了'), state('U01')],
+      verify: [['ファイル名', 'U01.dl.ファイル名', 'upload-sample.txt']] },
+    { ...base, id: 'U-02', title: 'ダウンロード', flow: [...go('/files', 'ファイル'), download('「CSV ダウンロード」リンク', 'U02')],
+      verify: [['ファイル名', 'U02.filename', 'orders.csv'], ['行', 'U02.lines', ['受注番号,顧客名', 'J-0001,青葉商事', 'J-0002,北山電機']]] },
+  ] }], { viewport: { width: 1000, height: 700 } });
+  const login = site.login;
+  site.login = async (...a) => { const r = await login(...a); context = r.context; return r; };
+  // 模型の代わり：指示文に対応する要素の位置を、いま前面にあるウィンドウから答える
+  const selectors = { '「顧客選択」ボタン': 'button:has-text("顧客選択")', '「北山電機」の行の「選択」ボタン': 'tr:has-text("北山電機") button', '添付ファイルの入力欄': '#f',
+    '「アップロード」ボタン': 'button:has-text("アップロード")', '「CSV ダウンロード」リンク': 'a[href="/export.csv"]' };
+  model.live.locate = async prompt => {
+    const page = context.pages().findLast(p => !p.isClosed());
+    const b = selectors[prompt] && await page.locator(selectors[prompt]).boundingBox();
+    return b ? { box: [b.x, b.y, b.width, b.height], viewport: page.viewportSize() } : null;
+  };
+  const before = model.calls.length;
+  try {
+    const r = await runTests(site, ['--engine', 'ai'], { setExitCode: false });
+    assert.deepEqual(r.summary.cases.map(c => [c.id, c.verdict, c.ng]), [['P-01', 'OK', []], ['U-01', 'OK', []], ['U-02', 'OK', []]]);
+    assert.equal(r.results[0].engine, 'ai');
+    // 辞書は使わず、すべての操作で AI（模型の代わりのサーバー）に位置を尋ねている
+    assert.deepEqual(model.calls.slice(before).filter(x => x.type === 'locate').map(x => x.prompt), Object.keys(selectors));
+    assert.match(fs.readFileSync(site.dir + '結果一覧.md', 'utf8'), /AI 操作（Midscene ＋ Playwright）/);
+  } finally { model.live.locate = null; }
+});
+
+test('モデル評価：指示文ごとにモデルの回答を辞書の正解と比べ、命中率と外れた指示文を出す', async () => {
+  const site = makeSite(fx.url, [], { viewport: { width: 1000, height: 700 } });
+  const inventory = [
+    { url: '/fixed', h1: '入力', prompts: [{ kind: 'aiInput', prompt: '名前の入力欄', ok: true }, { kind: 'aiTap', prompt: '「保存」ボタン', ok: true }, { kind: 'aiWaitFor', prompt: '「入力」画面が表示されている', ok: true }, { kind: 'aiTap', prompt: '解決できない指示文', ok: false }] },
+    { url: '/', h1: 'ホーム', prompts: [{ kind: 'aiTap', prompt: '「保存」ボタン', ok: true }, { kind: 'aiInput', prompt: '区分の選択欄', ok: true }] },
+  ];
+  // 模型の代わり：「名前の入力欄」は正しい位置、「保存」ボタンは表の位置（/fixed では正解）、「区分の選択欄」は見当違いの位置を答える
+  model.live.locate = async prompt => prompt === '区分の選択欄' ? { box: [800, 600, 20, 20], viewport: { width: 1000, height: 700 } } : null;
+  try {
+    const r = await evaluateModel(site, { inventory, log: () => {} });
+    // 問題になるのは、辞書で解決できた aiTap / aiInput だけ。同じ指示文は最初の画面でだけ問う
+    assert.deepEqual(r.rows.map(x => [x.screen, x.prompt, x.hit]), [['入力', '名前の入力欄', true], ['入力', '「保存」ボタン', true], ['ホーム', '区分の選択欄', false]]);
+    assert.deepEqual([r.total, r.hits, r.rate], [3, 2, 66.7]);
+    assert.ok(r.rows[2].off > 100, '外れたときは正解の中心からの距離を出す');
+    const md = toMarkdown(site, r);
+    assert.match(md, /命中率：\*\*66\.7%\*\*（2\/3）/);
+    assert.match(md, /## 外れた指示文[\s\S]*\| ホーム \| 区分の選択欄 \|/);
+    // --dry-run：モデルを呼ばずに問題の一覧だけ出す
+    const before = model.calls.length;
+    const dry = await evaluateModel(site, { inventory, dryRun: true });
+    assert.deepEqual([dry.total, dry.rate, model.calls.length - before], [3, null, 0]);
+  } finally { model.live.locate = null; }
 });

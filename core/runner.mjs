@@ -2,7 +2,8 @@
 // 各サイトの run.mjs が site 設定を渡して呼ぶ：await runTests({ ...site, suites: SUITES })
 //
 // 引数
-//   --engine midscene|playwright  midscene＝AI 操作（モデル必須）／playwright＝固定ロケーター（モデル不要）。既定は TEST_ENGINE、なければ midscene
+//   --engine playwright|ai|midscene  playwright＝固定ロケーター（モデル不要）／ai＝同じブラウザ上で Midscene の AI が操作（要モデル）／
+//                                 midscene＝YAML を Midscene CLI で実行（要モデル）。既定は TEST_ENGINE、なければ midscene
 //   --only 01-xxx,02-yyy          実行するスイートを絞る
 //   --build-only                  YAML・試験仕様書・観点カバレッジの生成と、ケース定義・ロケーター辞書の検査だけ行う（ブラウザ不要）
 //   --eval-only                   実行せず、前回の出力を判定し直す
@@ -47,7 +48,7 @@ import { writeCoverage } from './coverage.mjs';
 import { loadBaseline, compareBaseline, saveBaseline } from './baseline.mjs';
 import { writeSpec, writeResult, writeMd, writeHtml, writeJunit, writeBugDrafts } from './report.mjs';
 
-const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 20).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
+const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 21).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
 
 // setExitCode:false にすると process.exitCode を変えない（戻り値の exitCode だけを使う。フレームワーク自身の試験用）
 export async function runTests(site, args = process.argv.slice(2), { setExitCode = true } = {}) {
@@ -62,7 +63,8 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   if (unknown.length) throw new Error(`--only に存在しないスイート：${unknown.join(', ')}（指定できるのは ${SUITES.map(s => s.file).join(', ')}）`);
   const suites = SUITES.filter(s => !only || only.includes(s.file));
   const engine = opt('--engine') ?? (process.env[site.engineEnv ?? 'TEST_ENGINE'] || process.env.TEST_ENGINE || 'midscene');
-  if (!['midscene', 'playwright'].includes(engine)) throw new Error('--engine は midscene / playwright');
+  if (!['midscene', 'playwright', 'ai'].includes(engine)) throw new Error('--engine は playwright / ai / midscene');
+  const inBrowser = engine !== 'midscene'; // playwright・ai はこのプロセスの Playwright で実行する
   const flags = { aiAssert: args.includes('--ai-assert'), heal: args.includes('--heal'), retries: Number(opt('--retries') ?? 0),
     visual: args.includes('--visual') || args.includes('--update-visual'), updateVisual: args.includes('--update-visual') };
   fs.mkdirSync(OUT + 'out', { recursive: true });
@@ -89,7 +91,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
       + (cov.unfounded.length ? `\n  設計書に根拠のない期待値 ${cov.unfounded.length} 件：${cov.unfounded.slice(0, 5).map(u => `${u.id}「${u.text}」`).join('／')}` : ''));
   }
   const pwOnly = SUITES.flatMap(s => s.cases).filter(c => c.flow.some(st => 'upload' in st || 'download' in st)).map(c => c.id);
-  if (pwOnly.length && engine === 'midscene') console.log(`注意：upload / download は Playwright エンジン専用のステップです。Midscene では実行できないケース：${pwOnly.join(', ')}`);
+  if (pwOnly.length && engine === 'midscene') console.log(`注意：upload / download は Midscene の YAML では実行できません（--engine ai なら AI 操作で実行できます）。該当ケース：${pwOnly.join(', ')}`);
   if (args.includes('--build-only')) return { results: [], exitCode: 0 };
 
   // ---------- 2. 実行 ----------
@@ -112,13 +114,13 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
         // やり直しで通ったケースは「不安定」として結果に残す
         runs[s.file].flaky = [...flaky].filter(id => runs[s.file].tasks[id] === 'ok');
         fs.writeFileSync(runsFile, JSON.stringify(runs, null, 1));
-        print(`  [${engine}] ${runs[s.file].sec}s　${runs[s.file].engine === 'playwright' ? 'Trace' : 'レポート'}：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
+        print(`  [${engine}] ${runs[s.file].sec}s　${runs[s.file].engine !== 'midscene' ? 'Trace' : 'レポート'}：${runs[s.file].report ? rel(runs[s.file].report) : '-'}`);
       };
       // 並列実行（--workers N）：スイートどうしがデータを共有しないサイト（site.parallel = true）で、Playwright エンジンのときだけ行う。
       // ログはスイートごとにまとめて出す
       const workers = Math.max(1, Number(opt('--workers') ?? 1));
-      if (workers > 1 && !(site.parallel && engine === 'playwright')) console.log(`--workers ${workers} は使いません（${engine !== 'playwright' ? 'Playwright エンジン専用' : 'site.parallel = true のサイトだけ。スイートがデータを共有すると結果が変わるため'}）。順に実行します`);
-      if (workers > 1 && site.parallel && engine === 'playwright') {
+      if (workers > 1 && !(site.parallel && inBrowser)) console.log(`--workers ${workers} は使いません（${!inBrowser ? 'playwright / ai エンジン専用' : 'site.parallel = true のサイトだけ。スイートがデータを共有すると結果が変わるため'}）。順に実行します`);
+      if (workers > 1 && site.parallel && inBrowser) {
         const queue = [...suites];
         await Promise.all(Array.from({ length: Math.min(workers, queue.length) }, async () => {
           for (let s = queue.shift(); s; s = queue.shift()) { const lines = []; await runSuite(s, l => lines.push(l)); console.log(lines.join('\n')); }
@@ -163,7 +165,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
 async function runOnce(site, s, engine, flags) {
   const state = site.beforeSuite ? await site.beforeSuite(s) : undefined;
   const t0 = Date.now(); let run, journal;
-  try { run = engine === 'playwright' ? await runPlaywright(site, s, flags) : await runMidscene(site, s); }
+  try { run = engine !== 'midscene' ? await runPlaywright(site, s, { ...flags, ai: engine === 'ai' }) : await runMidscene(site, s); }
   catch (e) {
     const fatal = e.message.split('\n')[0];
     flags.print(`  ✖ スイートを実行できません：${fatal}`);
@@ -255,7 +257,7 @@ async function runPlaywright(site, s, flags) {
   const { runSuite } = await import('./engine-playwright.mjs');
   const OUT = site.out; const lines = [];
   const r = await runSuite(s, { site, outFile: OUT + `out/${s.file}.json`, shotsDir: OUT + `out/shots/${s.file}`, traceFile: OUT + `out/${s.file}-trace.zip`,
-    aiAssert: flags.aiAssert, heal: flags.heal, visual: flags.visual, agentFactory: site.agentFactory, downloadsDir: OUT + `out/downloads/${s.file}`, log: l => { lines.push(l); flags.print(l); } });
+    aiAssert: flags.aiAssert, heal: flags.heal, ai: flags.ai, visual: flags.visual, agentFactory: site.agentFactory, downloadsDir: OUT + `out/downloads/${s.file}`, log: l => { lines.push(l); flags.print(l); } });
   fs.writeFileSync(OUT + `out/${s.file}.log`, lines.concat(r.errors).join('\n') + '\n');
   const hFile = OUT + `out/${s.file}-health.json`;
   if (r.health) fs.writeFileSync(hFile, JSON.stringify(r.health, null, 1)); else fs.rmSync(hFile, { force: true });
@@ -274,7 +276,7 @@ async function runPlaywright(site, s, flags) {
 function extractEvidence(OUT, SUITES, runs) {
   const ev = {}; const dirE = OUT + 'evidence/'; fs.rmSync(dirE, { recursive: true, force: true }); fs.mkdirSync(dirE, { recursive: true });
   for (const s of SUITES) {
-    if (runs[s.file]?.engine === 'playwright') {
+    if (runs[s.file] && runs[s.file].engine !== 'midscene') {
       const mf = runs[s.file].shots; if (!mf || !fs.existsSync(mf)) continue;
       for (const { caseId, label, file: src } of JSON.parse(fs.readFileSync(mf, 'utf8'))) {
         if (!fs.existsSync(src)) continue;

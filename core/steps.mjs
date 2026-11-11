@@ -66,7 +66,14 @@ export function pageState(opt = {}) {
 }
 
 // 画面状態を name で出力 JSON に記録するステップを作る関数を返す
-export const makeState = (opt = {}) => name => ({ javascript: `(${pageState.toString()})(${JSON.stringify(opt)})\n`, name });
+// frame 指定時：Playwright 系のエンジンは iframe の中で直接実行する（frame・javascriptInFrame。オリジンが違っても読める）。
+// Midscene の YAML では親の文書から contentDocument をたどる（同一オリジンに限る）
+export const makeState = (opt = {}) => name => {
+  const script = o => `(${pageState.toString()})(${JSON.stringify(o)})\n`;
+  if (!opt.frame) return { javascript: script(opt), name };
+  const { frame, ...inner } = opt;
+  return { javascript: script(opt), name, frame, javascriptInFrame: script(inner) };
+};
 export const state = makeState();
 
 // 画面遷移（URL 直接）。title を渡すと見出しの表示まで待つ。
@@ -103,6 +110,7 @@ export const answerDialog = answer => ({ javascript: `sessionStorage.setItem('__
 // Midscene の YAML には goto がないため、遷移を setTimeout で予約して sleep で待つ（javascript ステップは遷移完了を待てない）。
 // dialogs:true のときは、ダイアログを出しうる操作（クリック・キー入力）の直前に差し替えを入れる
 export function toYamlSteps(step, { dialogs = false } = {}) {
+  if ('javascriptInFrame' in step) { const { frame, javascriptInFrame, ...rest } = step; return [rest]; }
   if ('goto' in step) return [{ javascript: `setTimeout(() => { location.href = '${step.goto}'; }, 300);\n` }, { sleep: 1500 }];
   if (dialogs && ('aiTap' in step || 'aiKeyboardPress' in step)) return [{ javascript: DIALOG_HOOK }, step];
   // upload / download は Playwright エンジン専用。YAML では、ダウンロードはクリックだけ行い、アップロードは行わない（runner が警告する）

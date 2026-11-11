@@ -9,6 +9,8 @@
 // - recordToReport → スクリーンショット（manifest に記録し、runner が evidence/ へ取り込む）。visual:true なら見た目の比較用の PNG も撮る
 // ケースは 1 ページ上で順に実行する（前ケースの画面を引き継ぐケースがあるため）。失敗したケースは以降のステップを打ち切り、
 // その画面を引き継ぐ後続ケース（flow が goto で始まらないケース）は「ブロック」として実行しない。
+// ai:true（要モデル。--engine ai）のとき、aiTap / aiHover / aiInput / aiWaitFor を辞書ではなく Midscene の AI が画面を見て行う。
+// ページは同じ Playwright のものなので、別ウィンドウ・ファイル・ダイアログ・自動検査・見た目の比較は AI 操作でも同じように働く。
 // heal:true（要モデル）のとき、辞書で操作できなかったステップを AI で代替し、辞書の修正候補として記録する。
 import fs from 'fs'; import path from 'path';
 import { launch } from './browser.mjs';
@@ -19,7 +21,7 @@ const DEFAULT_TIMEOUT = 15000;
 
 // site：{ url, viewport, login(browser, { viewport }) → { context, page }, locators: { resolve }, settle?, health? }
 // viewport は Midscene 版と同じにする（枠内表示・スクロール系の判定が画面サイズに依存するため）
-export async function runSuite(suite, { site, outFile, shotsDir, traceFile, downloadsDir = path.join(shotsDir, 'downloads'), aiAssert = false, heal = false, visual = false, agentFactory = aiAgent, log = console.log }) {
+export async function runSuite(suite, { site, outFile, shotsDir, traceFile, downloadsDir = path.join(shotsDir, 'downloads'), aiAssert = false, heal = false, ai = false, visual = false, agentFactory = aiAgent, log = console.log }) {
   const browser = await launch();
   const out = {}; const tasks = {}; const errors = []; const shots = []; const info = {};
   let health = null;
@@ -28,7 +30,10 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, down
     const { context, page } = await site.login(browser, { viewport: site.viewport });
     page.setDefaultTimeout(DEFAULT_TIMEOUT);
     await context.tracing.start({ screenshots: true, snapshots: true, title: suite.file });
-    const agent = aiAssert || heal ? await agentFactory(page) : null;
+    // AI のエージェントはウィンドウごとに作る（別ウィンドウが開いたら、そのウィンドウ用を作る）
+    const agents = new Map();
+    const agentFor = async p => { if (!agents.has(p)) agents.set(p, await agentFactory(p)); return agents.get(p); };
+    const useAgent = aiAssert || heal || ai;
     const monitor = watch(page, site);
     // ダイアログ：site.dialogs = true なら記録用の差し替えを全ページに入れる。無効のときは OK で閉じ、自動検査の注意に残す
     const onDialog = p => p.on('dialog', d => { monitor.note('warn', '想定外のダイアログ', `${d.type()}：${d.message()}（site.dialogs = true で記録・判定できる）`); d.accept().catch(() => {}); });
@@ -42,7 +47,7 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, down
       pages.push(p); p.setDefaultTimeout(DEFAULT_TIMEOUT); monitor.attach(p); if (!site.dialogs) onDialog(p);
       p.on('close', () => { const i = pages.indexOf(p); if (i > 0) pages.splice(i, 1); });
     });
-    const ctx = { site, out, shots, shotsDir, downloadsDir, pages, agent, aiAssert, heal, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
+    const ctx = { site, out, shots, shotsDir, downloadsDir, pages, agentFor: useAgent ? agentFor : null, aiAssert: aiAssert || ai, heal, ai, visual, monitor, resolve: site.locators.resolve, settle: site.settle ?? settle };
     let prev = null;
     for (const c of suite.cases) {
       const t0 = Date.now(); const ci = (info[c.id] = { healed: [] });
@@ -85,7 +90,8 @@ async function step(page, st, ctx) {
     return ctx.settle(page);
   }
   if ('javascript' in st) {
-    const v = await page.evaluate(st.javascript);
+    // frame 付きのステップは、その iframe の中で実行する（オリジンが違う iframe でも読める）
+    const v = st.frame ? await (await (await page.locator(st.frame).first().elementHandle({ timeout })).contentFrame()).evaluate(st.javascriptInFrame ?? st.javascript) : await page.evaluate(st.javascript);
     if (st.name) ctx.out[st.name] = v ?? null;
     return;
   }
@@ -93,28 +99,32 @@ async function step(page, st, ctx) {
   if ('aiKeyboardPress' in st) { await page.keyboard.press(st.aiKeyboardPress); return ctx.settle(page); }
   for (const kind of ['aiTap', 'aiHover', 'aiInput', 'aiWaitFor']) {
     if (!(kind in st)) continue;
-    try { await operate(page, kind, st, timeout, ctx); }
-    catch (e) {
-      // AI での代替（--heal）：辞書のロケーターが画面の変更で外れた場合も試験を止めず、修正候補として記録する
-      if (!ctx.heal || !ctx.agent) throw e;
-      if (kind === 'aiTap') await ctx.agent.aiTap(st.aiTap);
-      else if (kind === 'aiHover') await ctx.agent.aiHover(st.aiHover);
-      else if (kind === 'aiInput') await ctx.agent.aiInput(st.aiInput, { value: String(st.value) });
-      else await ctx.agent.aiWaitFor(st.aiWaitFor, { timeoutMs: timeout });
-      ctx.ci.healed.push({ kind, prompt: st[kind], error: e.message.split('\n')[0] });
+    if (ctx.ai) await operateByAi(await ctx.agentFor(page), kind, st, timeout);
+    else {
+      try { await operate(page, kind, st, timeout, ctx); }
+      catch (e) {
+        // AI での代替（--heal）：辞書のロケーターが画面の変更で外れた場合も試験を止めず、修正候補として記録する
+        if (!ctx.heal || !ctx.agentFor) throw e;
+        await operateByAi(await ctx.agentFor(page), kind, st, timeout);
+        ctx.ci.healed.push({ kind, prompt: st[kind], error: e.message.split('\n')[0] });
+      }
     }
     // クリックで別ウィンドウが開いた場合は、そのウィンドウの読み込みを待つ
     if (kind === 'aiTap') { await page.waitForTimeout(50).catch(() => {}); const top = ctx.pages.findLast(p => !p.isClosed()) ?? ctx.pages[0]; if (top !== page) return ctx.settle(top); }
     return ctx.settle(page);
   }
   if ('upload' in st) {
-    const target = ctx.resolve('aiInput', st.upload, page);
-    await target.setInputFiles([].concat(st.file).map(f => path.resolve(ctx.site.dir, f)), { timeout });
+    const files = [].concat(st.file).map(f => path.resolve(ctx.site.dir, f));
+    if (ctx.ai) {
+      // AI 操作：ファイル選択欄を AI がクリックし、開いたファイル選択にファイルを渡す
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout }), (await ctx.agentFor(page)).aiTap(st.upload)]);
+      await chooser.setFiles(files);
+    } else await ctx.resolve('aiInput', st.upload, page).setInputFiles(files, { timeout });
     return ctx.settle(page);
   }
   if ('download' in st) {
-    const target = ctx.resolve('aiTap', st.download, page);
-    const [dl] = await Promise.all([page.waitForEvent('download', { timeout }), target.click({ timeout })]);
+    const click = ctx.ai ? async () => (await ctx.agentFor(page)).aiTap(st.download) : () => ctx.resolve('aiTap', st.download, page).click({ timeout });
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout }), click()]);
     fs.mkdirSync(ctx.downloadsDir, { recursive: true });
     const file = path.join(ctx.downloadsDir, `${ctx.c.id}_${dl.suggestedFilename().replace(/[\\/:*?"<>|]+/g, '_')}`);
     await dl.saveAs(file);
@@ -126,12 +136,20 @@ async function step(page, st, ctx) {
   }
   if ('aiAssert' in st) {
     if (!st.name) return;
-    ctx.out[st.name] = ctx.aiAssert && ctx.agent ? await ctx.agent.aiAssert(st.aiAssert, undefined, { keepRawResponse: true })
+    ctx.out[st.name] = ctx.aiAssert && ctx.agentFor ? await (await ctx.agentFor(page)).aiAssert(st.aiAssert, undefined, { keepRawResponse: true })
       : { pass: null, skipped: true, thought: 'Playwright モード：AI 判定は未実施' };
     return;
   }
   if ('recordToReport' in st) { await ctx.monitor.lint(page); return shot(page, st.recordToReport, ctx); }
   throw new Error('未対応のステップ：' + JSON.stringify(st).slice(0, 120));
+}
+
+// AI（Midscene）に画面を見て操作させる
+async function operateByAi(agent, kind, st, timeout) {
+  if (kind === 'aiTap') return agent.aiTap(st.aiTap);
+  if (kind === 'aiHover') return agent.aiHover(st.aiHover);
+  if (kind === 'aiInput') return agent.aiInput(st.aiInput, { value: String(st.value) });
+  return agent.aiWaitFor(st.aiWaitFor, { timeoutMs: timeout });
 }
 
 async function operate(page, kind, st, timeout, ctx) {
@@ -176,5 +194,7 @@ async function shot(page, label, { shots, shotsDir, visual, site }) {
 // aiAssert の AI 判定・--heal の代替操作に使う Midscene エージェント。.env の MIDSCENE_MODEL_* を使用
 async function aiAgent(page) {
   const { PlaywrightAgent } = await import('@midscene/web/playwright');
-  return new PlaywrightAgent(page, { generateReport: true, groupName: 'playwright-ai' });
+  // forceSameTabNavigation:false … Midscene は既定で別ウィンドウを同じタブで開かせるが、それでは opener を使う画面（選択して閉じる子画面）が動かない。
+  // 別ウィンドウはエンジン側で追うので、アプリの動作どおりに開かせる
+  return new PlaywrightAgent(page, { generateReport: true, groupName: 'playwright-ai', forceSameTabNavigation: false });
 }
