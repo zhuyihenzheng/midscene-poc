@@ -179,17 +179,19 @@ test('--workers：データを共有しないサイトはスイートを並列�
   const suite = n => ({ file: `0${n}-slow`, title: `遅い画面 ${n}`, cases: [
     { ...base, id: `W-0${n}`, title: '遅い画面', flow: [{ goto: '/slow' }, screen('遅い画面'), state(`W0${n}`), { goto: '/slow' }, screen('遅い画面')], verify: [['見出し', `W0${n}.title`, '遅い画面']] }] });
   const suites = [1, 2, 3, 4].map(suite);
-  const t0 = Date.now();
+  // 並列かどうかは時間ではなく、サーバーが同時に処理した要求の数で確かめる（時間は実行環境の負荷で変わるため）
+  fx.slow.max = 0;
   const seq = await run(makeSite(fx.url, suites, { parallel: true }));
-  const t1 = Date.now();
+  assert.equal(fx.slow.max, 1, '順に実行したときは同時に 1 件');
+  fx.slow.max = 0;
   const par = await run(makeSite(fx.url, suites, { parallel: true }), '--workers', '4');
-  const t2 = Date.now();
+  assert.ok(fx.slow.max >= 2, `並列のときは同時に複数（実際 ${fx.slow.max} 件）`);
   assert.deepEqual(par.summary.cases.map(c => [c.id, c.verdict]), seq.summary.cases.map(c => [c.id, c.verdict]));
   assert.deepEqual(par.summary.cases.map(c => c.verdict), ['OK', 'OK', 'OK', 'OK']);
-  assert.ok(t2 - t1 < (t1 - t0) * 0.75, `並列 ${t2 - t1}ms、順次 ${t1 - t0}ms`);
   // site.parallel のないサイトでは、指定しても順に実行する
-  const refused = await run(makeSite(fx.url, suites.slice(0, 1)), '--workers', '4');
-  assert.deepEqual(refused.summary.cases.map(c => c.verdict), ['OK']);
+  fx.slow.max = 0;
+  const refused = await run(makeSite(fx.url, suites.slice(0, 2)), '--workers', '4');
+  assert.deepEqual([refused.summary.cases.map(c => c.verdict), fx.slow.max], [['OK', 'OK'], 1]);
 });
 
 test('オリジンの違う iframe：枠の中で直接実行して画面状態を記録する', async () => {

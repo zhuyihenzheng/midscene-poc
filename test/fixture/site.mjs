@@ -6,6 +6,7 @@ const page = (title, body) => `<!doctype html><html lang="ja"><head><meta charse
 
 export async function startFixture() {
   let flaky = 0; const look = { color: '#1d4ed8' };
+  const slow = { active: 0, max: 0 }; // /slow を同時に処理している数（並列実行の確認用）
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const html = (s, status = 200) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' }); res.end(s); };
@@ -37,13 +38,13 @@ export async function startFixture() {
       case '/files': return html(page('ファイル', `<form method="post" action="/upload" enctype="multipart/form-data"><p><label for="f">添付ファイル</label> <input type="file" id="f" name="f"></p><button type="submit">アップロード</button></form><p><a href="/export.csv">CSV ダウンロード</a></p>`));
       case '/upload': { let n = 0; const chunks = []; req.on('data', d => { n += d.length; chunks.push(d); }); req.on('end', () => { const body = Buffer.concat(chunks).toString('latin1'); const name = Buffer.from(body.match(/filename="([^"]*)"/)?.[1] ?? '', 'latin1').toString('utf8'); const content = body.split('\r\n\r\n')[1]?.split('\r\n--')[0] ?? ''; html(page('アップロード完了', `<dl><dt>ファイル名</dt><dd>${name}</dd><dt>バイト数</dt><dd>${content.length}</dd></dl>`)); }); return; }
       case '/export.csv': res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="orders.csv"' }); return res.end('\uFEFF受注番号,顧客名\r\nJ-0001,青葉商事\r\nJ-0002,北山電機\r\n');
-      case '/slow': return setTimeout(() => html(page('遅い画面', '<p>本文</p>')), 1200);
+      case '/slow': slow.max = Math.max(slow.max, ++slow.active); return setTimeout(() => { slow.active--; html(page('遅い画面', '<p>本文</p>')); }, 800);
       case '/loading': return html(page('読込', `<p id="l">読み込み中</p><script>setTimeout(() => document.getElementById('l').remove(), 300);</script>`));
       default: return html(page('エラー', '<p>見つかりません。</p>'), 404);
     }
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
-  return { url: `http://127.0.0.1:${server.address().port}/`, look, close: () => new Promise(r => server.close(r)) };
+  return { url: `http://127.0.0.1:${server.address().port}/`, look, slow, close: () => new Promise(r => server.close(r)) };
 }
 
 // 結果の出力先を一時ディレクトリにしたサイト設定
