@@ -37,7 +37,7 @@ jobs:
       - name: Failure digest
         if: failure()
         shell: bash
-        run: grep -E -A14 "^not ok" test.log | grep -vE "duration_ms|type:|^  ---|^--$" | cut -c1-600 | head -80
+        run: grep -E -A14 "^not ok" test.log | grep -vE "duration_ms|type:|^  ---|^--$" | cut -c1-9000 | head -80
       # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）
       - run: npm run demo -- --results .test-results/demo
       - run: npm run demo:legacy -- --results .test-results/legacy

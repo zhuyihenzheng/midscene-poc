@@ -18,7 +18,9 @@ function cliErrors(site, file) {
   const f = site.dir + `out/${file}.log`;
   if (!fs.existsSync(f)) return 'CLI のログなし';
   const lines = fs.readFileSync(f, 'utf8').split('\n').map(l => l.trim()).filter(l => /error|fail|cannot|not found|ENOENT|timeout/i.test(l) && !/^at /.test(l));
-  return 'CLI-ERRORS: ' + [...new Set(lines)].slice(0, 12).map(l => l.slice(0, 260)).join(' || ');
+  // 起動時の失敗は原因が分かりにくいため、スタックの行を除いたログ全体も付ける
+  const full = fs.readFileSync(f, 'utf8').replace(/\x1b\[[0-9;]*m/g, '').split('\n').map(l => l.trim()).filter(l => l && !/^at /.test(l));
+  return 'CLI-ERRORS: ' + [...new Set(lines)].slice(0, 12).map(l => l.slice(0, 260)).join(' || ') + ' ## CLI-LOG(' + full.length + ' lines): ' + full.slice(0, 90).map(l => l.slice(0, 200)).join(' ¶ ');
 }
 before(async () => {
   fx = await startFixture();
