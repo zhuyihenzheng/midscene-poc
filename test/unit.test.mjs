@@ -154,3 +154,10 @@ test('Midscene CLI のログ：行の順序によらず、タスクごとの成�
   assert.equal(midsceneStartupFailed('  ✘ A-01_x (task 1/4)\nYAML execution failed:\n   Failed: 1'), false);
   assert.equal(midsceneStartupFailed('  ✔︎ A-01_x \n   Failed: 0'), false);
 });
+
+test('coverage：「メッセージ」列のある表からは、句点で終わらない英語のメッセージも拾う', () => {
+  const md = ['| 画面 | 条件 | メッセージ | 出典 |', '|---|---|---|---|', '| S03 | パスワード誤り | Incorrect password. | auth.py:99 |', '| S02 | 重複 | User {username} is already registered. | auth.py:74 |'].join('\n');
+  assert.deepEqual(designItems(md).filter(i => i.type === 'メッセージ').map(i => i.key), ['Incorrect password.', 'User {username} is already registered.']);
+  const { rows } = analyze(md, [{ cases: [mk('A-01', { verify: [['重複', 'A01', 'User alice is already registered.']] })] }]);
+  assert.deepEqual(rows.filter(r => r.type === 'メッセージ').map(r => [r.key, r.cases]), [['Incorrect password.', []], ['User {username} is already registered.', ['A-01']]]);
+});

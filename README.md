@@ -22,6 +22,8 @@ npm run demo
 
 执行后打开 `sites/coupon-demo/tests/report.html` 看结果。
 
+用在外部真实应用上的例子见 `sites/flaskr/README.md`：Flask 官方教程的博客应用，22 个用例，植入 4 种缺陷全部查出。
+
 还有第二个演示站点 `npm run demo:legacy`：模仿老式业务系统的受注管理画面（表格布局的表单、没有 label 和 h1、用 `alert` / `confirm` 弹窗报错和确认、检索结果异步显示），20 个用例，埋了 2 个缺陷。它用来说明这类画面也能测。
 
 没有 Chrome 和 Edge 时，执行 `npx playwright install chromium`，并把 `.env` 里的 `TEST_BROWSER_CHANNEL` 改成 `chromium`。

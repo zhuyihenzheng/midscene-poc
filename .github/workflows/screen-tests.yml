@@ -41,6 +41,14 @@ jobs:
       # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）
       - run: npm run demo -- --results .test-results/demo
       - run: npm run demo:legacy -- --results .test-results/legacy
+      # 外部の実在アプリ（Flask 公式チュートリアルの Flaskr）への適用。Linux だけで行う
+      - name: Flaskr (external app)
+        if: runner.os == 'Linux'
+        run: |
+          git clone -q --depth 1 --branch 3.1.3 https://github.com/pallets/flask .ext/flask
+          python3 -m venv .ext/venv
+          .ext/venv/bin/pip install -q flask==3.1.3
+          node sites/flaskr/tests/run.mjs --engine playwright --results .test-results/flaskr
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -54,4 +62,6 @@ jobs:
             .test-results/legacy/report.html
             .test-results/legacy/*.md
             .test-results/legacy/*.xlsx
+            .test-results/flaskr/report.html
+            .test-results/flaskr/*.md
           if-no-files-found: warn

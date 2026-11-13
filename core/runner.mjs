@@ -7,7 +7,7 @@
 //   --only 01-xxx,02-yyy          実行するスイートを絞る
 //   --build-only                  YAML・試験仕様書・観点カバレッジの生成と、ケース定義・ロケーター辞書の検査だけ行う（ブラウザ不要）
 //   --eval-only                   実行せず、前回の出力を判定し直す
-//   --retries N                   「実行不能」（操作できなかった）ケースがあるスイートを最大 N 回やり直す（値の不一致はやり直さない）
+//   --retries N                   操作できなかった・待ちで止まったケースがあるスイートを最大 N 回やり直す（値の不一致だけならやり直さない）
 //   --ai-assert                   playwright エンジンで aiAssert だけ AI 判定する（要モデル）
 //   --heal                        playwright エンジンで、辞書で操作できなかったステップを AI で代替する（要モデル）
 //   --visual                      playwright エンジンで、証跡の画面を基準の画像（visual-baseline/）と比べ、違いを「注意」に載せる
@@ -106,10 +106,11 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
         const flaky = new Set();
         for (let attempt = 1; ; attempt++) {
           runs[s.file] = { ...(await runOnce(site, s, engine, { ...flags, print })), attempts: attempt };
-          const stuck = evaluateSuite(site, s, runs).filter(r => r.cause === '実行不能').map(r => r.c.id);
+          // やり直すのは、操作できなかったケースと、待ち（aiWaitFor）で止まったケース（一時的な遅れの可能性がある）。値の不一致だけのケースはやり直さない
+          const stuck = evaluateSuite(site, s, runs).filter(r => r.cause === '実行不能' || r.waitFailed).map(r => r.c.id);
           if (!stuck.length || attempt > flags.retries) break;
           stuck.forEach(id => flaky.add(id));
-          print(`  実行不能 ${stuck.join(', ')} → スイートをやり直します（${attempt}/${flags.retries}）`);
+          print(`  実行不能・待ちで停止 ${stuck.join(', ')} → スイートをやり直します（${attempt}/${flags.retries}）`);
         }
         // やり直しで通ったケースは「不安定」として結果に残す
         runs[s.file].flaky = [...flaky].filter(id => runs[s.file].tasks[id] === 'ok');
@@ -198,7 +199,7 @@ export function evaluateSuite(site, s, runs) {
     const hard = items.filter(i => !i.ai && !i.warn); const failed = hard.filter(i => !i.pass); const aiItems = items.filter(i => i.ai);
     const verdict = blocked ? 'ブロック' : hard.length && !failed.length && task !== 'failed' ? 'OK' : 'NG';
     const cause = verdict !== 'NG' ? null : failed.some(i => !i.missing) ? '不一致' : '実行不能';
-    const r = { suite: s, c, items, verdict, cause, task, blocked, ng: verdict === 'NG' ? failed.map(i => i.desc) : [], error: info.error ?? null, healed: info.healed ?? [], sec: info.sec ?? null,
+    const r = { suite: s, c, items, verdict, cause, task, blocked, ng: verdict === 'NG' ? failed.map(i => i.desc) : [], error: info.error ?? null, healed: info.healed ?? [], sec: info.sec ?? null, waitFailed: info.waitFailed ?? null,
       flaky: (run.flaky ?? []).includes(c.id), aiNg: aiItems.filter(i => !i.pass && !i.skipped).length, aiRun: aiItems.filter(i => !i.skipped).length,
       report: run.report, engine: run.engine ?? 'midscene' };
     results.push(r); prev = r;

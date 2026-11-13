@@ -29,6 +29,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
@@ -97,6 +99,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
@@ -157,6 +161,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
@@ -218,6 +224,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
@@ -276,6 +284,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
@@ -333,6 +343,8 @@ tasks:
               if (!key(e)) continue;
               if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
               fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
                 ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
             }
             const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';

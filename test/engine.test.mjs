@@ -208,3 +208,20 @@ test('オリジンの違う iframe：枠の中で直接実行して画面状態�
     assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []]]);
   } finally { await other.close(); }
 });
+
+test('待ち（aiWaitFor）で止まったケースは、その時点の画面を記録して「不一致」として実測値を残す。操作で止まったケースは「実行不能」', async () => {
+  const site = makeSite(fx.url, [{ file: '01-wait', title: '待ちの失敗', cases: [
+    // 期待したメッセージが出ない（アプリの振る舞いが違う）：残りの state() で実際の画面を記録する
+    { ...base, id: 'W-01', title: '期待した画面にならない', flow: [...go('/', 'ホーム'), { aiInput: '名前の入力欄', value: '山田' }, { aiTap: '「保存」ボタン' },
+      { aiWaitFor: '「登録しました。」と表示されている', timeout: 1500 }, state('W01')],
+      verify: [['完了メッセージ', 'W01.status', '登録しました。'], ['画面', 'W01.title', '保存完了']] },
+    // ボタンが見つからない（画面の変更か試験側の問題）：記録しない
+    { ...base, id: 'W-02', title: '操作できない', flow: [...go('/renamed', '編集'), { aiTap: '「保存」ボタン', timeout: 1500 }, state('W02')],
+      verify: [['見出し', 'W02.title', '保存完了']] },
+  ] }]);
+  const r = await run(site);
+  const [w1, w2] = r.results;
+  assert.deepEqual([w1.verdict, w1.cause, w2.verdict, w2.cause], ['NG', '不一致', 'NG', '実行不能']);
+  assert.equal(w1.items.find(i => i.desc === '完了メッセージ').actual, '保存しました。', '実際に表示された文言が残る');
+  assert.equal(w1.items.find(i => i.desc === '画面').pass, true);
+});

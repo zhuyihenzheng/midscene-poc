@@ -1,7 +1,7 @@
 // 観点カバレッジ（--build-only で生成。ブラウザ不要）：設計書の項目にケースがあるか、期待値に設計書の根拠があるかを機械的に確認する。
 // 設計書（Markdown）から拾う項目
 //   画面      見出し行に「画面」を含む表（画面一覧）で、先頭セルが画面 ID（例 S01）の行。ケースの screen に ID が出てくれば対応あり
-//   メッセージ 「…。」で括られた文言と、表のセルのうち「。」で終わる文言。ケースの期待値（verify・check・aiWaitFor）に出てくれば対応あり
+//   メッセージ 「…。」で括られた文言、表のセルのうち「。」で終わる文言、見出しに「メッセージ」「message」を含む列のセル（英語の画面など）。ケースの期待値（verify・check・aiWaitFor）に出てくれば対応あり
 //             「残り N 枚」のような可変部（半角英大文字 1 文字、{…}）は任意の文字列として照合する
 //   要件 ID   site.coverage.idPattern（例 /REQ-\d+/g）を指定した場合。ケースの refs に書いてあれば対応あり
 // 逆方向：ケースの期待値のうち「。」で終わる文言が設計書にない場合、「設計書に根拠のない期待値」として挙げる
@@ -22,6 +22,9 @@ export function designItems(md, { idPattern, screenId = /^[A-Z]{1,3}\d{2,}$/ } =
     if (!cells) header = null; else header ??= cells;
     // 画面 ID の形をした先頭セルは、商品コードなど別の表にも現れるため、画面一覧の表だけを対象にする
     if (cells && header.some(c => c.includes('画面')) && screenId.test(cells[0]) && cells[1]) add('画面', cells[0], cells[1]);
+    // 「メッセージ」列：句点で終わらない文言（英語など）もメッセージとして拾う
+    const mi = header?.findIndex(c => /メッセージ|message/i.test(c)) ?? -1;
+    if (cells && cells !== header && mi >= 0 && cells[mi] && !/^-+$/.test(cells[mi]) && cells[mi].length <= 120) add('メッセージ', cells[mi], cells[mi]);
     for (const m of line.matchAll(/「([^「」]+。)」/g)) add('メッセージ', m[1], m[1]);
     for (const c of cells ?? []) if (/。$/.test(c) && !/[「」|]/.test(c) && c.length <= 80) add('メッセージ', c, c);
     if (idPattern) for (const m of line.matchAll(idPattern)) add('要件', m[0], line.replace(/^[\s|\-*#]+/, '').slice(0, 60));

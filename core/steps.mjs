@@ -5,7 +5,7 @@
 
 // 画面の状態を 1 回で記録する（ブラウザ内で実行される。外側の変数は参照できない）。
 // 戻り値：{ title, path, fields, checks, radios, errors, dl, dialogs, alert, status, caption, headers, table, rows, rowActions, rowLinks, text, buttons, links, ...extra }
-//   fields  { id または name: { value, visible, disabled, readonly, invalid, text? } }（text は select の選択肢の表示名）
+//   fields  { id または name: { value, visible, disabled, readonly, invalid, valid, text? } }（invalid は aria-invalid、valid はブラウザの入力チェックの結果、text は select の選択肢の表示名）
 //   checks  { id または name: true/false }（チェックボックス）
 //   radios  { name: 選択中の value または null }
 //   errors  { 項目キー: 文言 }（表示中の項目エラー。キーは id の末尾「-error」を除いたもの）
@@ -29,6 +29,8 @@ export function pageState(opt = {}) {
     if (!key(e)) continue;
     if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
     fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+      // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+      valid: e.validity ? e.validity.valid : null,
       ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
   }
   const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';

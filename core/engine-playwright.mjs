@@ -72,13 +72,21 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, down
         prev = c; continue;
       }
       monitor.setCase(c.id);
+      let at = 0;
       try {
-        for (const st of c.flow) await step(current(), st, { ...ctx, c, ci });
+        for (; at < c.flow.length; at++) await step(current(), c.flow[at], { ...ctx, c, ci });
         await monitor.lint(current());
         tasks[c.id] = 'ok';
       } catch (e) {
         tasks[c.id] = 'failed'; ci.error = e.message.split('\n')[0];
         errors.push(`${c.id}: ${ci.error}`);
+        // 待ち（aiWaitFor）で止まった場合：期待した画面・メッセージにならなかった＝アプリの振る舞いが違う可能性が高い。
+        // その時点の画面で、残りの記録（名前付きの javascript：state() など）だけを行い、実際の値で判定できるようにする
+        // （判定は「不一致」になり、実測値が残る）。操作（クリック・入力）で止まった場合は、画面の変更や試験側の問題として記録しない
+        if ('aiWaitFor' in (c.flow[at] ?? {})) {
+          ci.waitFailed = c.flow[at].aiWaitFor;
+          for (const st of c.flow.slice(at + 1)) if ('javascript' in st && st.name) await step(current(), st, { ...ctx, c, ci }).catch(() => {});
+        }
         await monitor.lint(current());
         await shot(current(), `${c.id} 失敗時の画面`, { ...ctx, visual: false }).catch(() => {});
       }

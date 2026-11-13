@@ -1,5 +1,6 @@
 // 画面採取（全サイト共通・モデル不要）：ログイン後にリンクをたどって各画面の構成を JSON / Markdown に書き出す
 //   node core/explore.mjs <site.mjs> [--max 30] [--out <dir>]
+// site.explore.setup()：採取の前に 1 回呼ぶ（データの初期化・試験ユーザーの登録）。site.explore.flows：リンクでたどれない画面を開く操作
 // 出力（既定 <site.mjs のディレクトリ>/inventory/）
 //   inventory.json  画面ごとの見出し・入力項目（ラベル・必須・型・選択肢）・ボタン・リンク・表・メッセージ
 //   inventory.md    同じ内容を人／AI（Copilot 等）が読む形にしたもの。ケース起草の入力にする
@@ -20,6 +21,8 @@ const outDir = args.includes('--out') ? path.resolve(args[args.indexOf('--out') 
 const loc = site.locators ?? createLocators(DEFAULTS);
 
 const stopApp = site.startApp ? await site.startApp() : null;
+// 採取の前にデータを用意する（site.explore.setup）。DB の初期化・試験ユーザーの登録など、ログインや一覧の表示に必要なもの
+if (site.explore?.setup) await site.explore.setup();
 const browser = await launch();
 const pages = [];
 try {

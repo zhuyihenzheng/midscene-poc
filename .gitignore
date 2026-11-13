@@ -27,3 +27,6 @@ sites/*/tests/report.html
 
 # エージェントをモデルにする中継サーバー（core/agent-model.mjs）の要求・画面
 .agent-model/
+
+# 外部の試験対象アプリ（sites/flaskr）。リポジトリに含めない
+.ext/
