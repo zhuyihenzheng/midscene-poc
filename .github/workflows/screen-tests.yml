@@ -1,0 +1,67 @@
+# フレームワーク自身の試験（単体・エンジン・デモサイトの端から端まで）を Linux と Windows で実行する。
+# 実サイトの試験を定期実行する場合は、このファイルを写して最後のステップを node sites/<name>/tests/run.mjs --engine playwright に替え、
+# 資格情報をリポジトリの Secrets から env に渡す。
+name: screen-tests
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      TEST_ENGINE: playwright
+      TEST_BROWSER_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: npm test
+        shell: bash
+        run: npm test 2>&1 | tee test.log
+      # 失敗時：どの試験がなぜ落ちたかを短くまとめて出す（全体のログは長いため）
+      - name: Failure digest
+        if: failure()
+        shell: bash
+        run: grep -E -A14 "^not ok" test.log | grep -vE "duration_ms|type:|^  ---|^--$" | cut -c1-9000 | head -80
+      # デモサイトの結果一式を成果物として残す（基準どおりなら既知の NG があっても成功）
+      - run: npm run demo -- --results .test-results/demo
+      - run: npm run demo:legacy -- --results .test-results/legacy
+      # 外部の実在アプリ（Flask 公式チュートリアルの Flaskr）への適用。Linux だけで行う
+      - name: Flaskr (external app)
+        if: runner.os == 'Linux'
+        run: |
+          git clone -q --depth 1 --branch 3.1.3 https://github.com/pallets/flask .ext/flask
+          python3 -m venv .ext/venv
+          .ext/venv/bin/pip install -q flask==3.1.3
+          node sites/flaskr/tests/run.mjs --engine playwright --results .test-results/flaskr
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-results-${{ matrix.os }}
+          path: |
+            .test-results/demo/report.html
+            .test-results/demo/*.md
+            .test-results/demo/*.xlsx
+            .test-results/demo/out/junit.xml
+            .test-results/demo/out/*-trace.zip
+            .test-results/legacy/report.html
+            .test-results/legacy/*.md
+            .test-results/legacy/*.xlsx
+            .test-results/flaskr/report.html
+            .test-results/flaskr/*.md
+          if-no-files-found: warn

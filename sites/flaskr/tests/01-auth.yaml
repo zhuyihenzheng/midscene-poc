@@ -1,0 +1,609 @@
+# 自動生成（cases.mjs）：S02 Register・S03 Log In
+web:
+  url: http://127.0.0.1:8096/
+  cookie: ./sites/flaskr/tests/out/session-cookie.json
+  viewportWidth: 1280
+  viewportHeight: 900
+  output: ./sites/flaskr/tests/out/01-auth.json
+tasks:
+  - name: A-01_登録画面の初期表示
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/register'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Register」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A01
+      - recordToReport: A-01 Register 画面
+  - name: A-02_未入力のまま〈Register〉
+    continueOnError: true
+    flow:
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Register」ボタン
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A02
+      - recordToReport: A-02 未入力
+  - name: A-03_登録済みのユーザー名で登録
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/register'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Register」画面が表示されている
+        timeout: 15000
+      - aiInput: Usernameの入力欄
+        value: alice
+      - aiInput: Passwordの入力欄
+        value: x
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Register」ボタン
+      - aiWaitFor: 「User alice is already registered.」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A03
+      - recordToReport: A-03 重複
+  - name: A-04_新しいユーザーを登録
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/register'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Register」画面が表示されている
+        timeout: 15000
+      - aiInput: Usernameの入力欄
+        value: carol
+      - aiInput: Passwordの入力欄
+        value: carol-pw
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Register」ボタン
+      - aiWaitFor: 「Log In」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A04
+      - recordToReport: A-04 登録後
+  - name: A-05_存在しないユーザーでログイン
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/login'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Log In」画面が表示されている
+        timeout: 15000
+      - aiInput: Usernameの入力欄
+        value: nobody
+      - aiInput: Passwordの入力欄
+        value: x
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Log In」ボタン
+      - aiWaitFor: 「Incorrect username.」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A05
+      - recordToReport: A-05 ユーザーなし
+  - name: A-06_パスワード誤り
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/login'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Log In」画面が表示されている
+        timeout: 15000
+      - aiInput: Usernameの入力欄
+        value: alice
+      - aiInput: Passwordの入力欄
+        value: wrong
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Log In」ボタン
+      - aiWaitFor: 「Incorrect password.」と表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A06
+      - recordToReport: A-06 パスワード誤り
+  - name: A-07_正しいパスワードでログイン
+    continueOnError: true
+    flow:
+      - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
+          setTimeout(() => { location.href = '/auth/login'; }, 300);
+      - sleep: 1500
+      - aiWaitFor: 「Log In」画面が表示されている
+        timeout: 15000
+      - aiInput: Usernameの入力欄
+        value: alice
+      - aiInput: Passwordの入力欄
+        value: alice-pw
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Log In」ボタン
+      - aiWaitFor: 「Posts」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A07
+      - recordToReport: A-07 ログイン後
+  - name: A-08_〈Log Out〉
+    continueOnError: true
+    flow:
+      - javascript: |
+          (function dialogHook() {
+            if (window.__dialogHook) return;
+            window.__dialogHook = true;
+            const log = (type, message) => { try { const l = JSON.parse(sessionStorage.getItem('__dialogs') || '[]'); l.push({ type, message: String(message) }); sessionStorage.setItem('__dialogs', JSON.stringify(l)); } catch {} };
+            const answer = () => { const a = sessionStorage.getItem('__dialogAnswer'); sessionStorage.removeItem('__dialogAnswer'); return a; };
+            window.alert = m => { log('alert', m); answer(); }; // 答えの指定は「次のダイアログ 1 回」だけに効く
+            window.confirm = m => { log('confirm', m); return answer() !== 'cancel'; };
+            window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
+          })()
+      - aiTap: 「Log Out」リンク
+      - aiWaitFor: 「Posts」画面が表示されている
+        timeout: 15000
+      - javascript: |
+          (function pageState(opt = {}) {
+            // frame 指定時は iframe の中の文書を読む（以降の document・location・getComputedStyle は iframe のもの）
+            const frameEl = opt.frame ? window.document.querySelector(opt.frame) : null;
+            const document = frameEl?.contentDocument ?? window.document;
+            const { location, getComputedStyle, CSS } = document.defaultView ?? window;
+            const txt = e => (e?.innerText ?? '').replace(/\s+/g, ' ').trim();
+            const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden';
+            const key = e => e.id || e.name || '';
+            const fields = {}; const checks = {}; const radios = {};
+            for (const e of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+              if (e.type === 'radio') { radios[e.name] ??= null; if (e.checked) radios[e.name] = e.value; continue; }
+              if (!key(e)) continue;
+              if (e.type === 'checkbox') { checks[key(e)] = e.checked; continue; }
+              fields[key(e)] = { value: e.value, visible: vis(e), disabled: e.disabled, readonly: !!e.readOnly, invalid: e.getAttribute('aria-invalid') === 'true',
+                // valid：ブラウザの入力チェック（required・pattern・type など）を満たしているか。false なら送信はブラウザに止められる
+                valid: e.validity ? e.validity.valid : null,
+                ...(e.tagName === 'SELECT' ? { text: e.selectedOptions[0]?.textContent.trim() ?? null } : {}) };
+            }
+            const errorSelector = opt.errorSelector ?? '.field-error, .invalid-feedback, .error-message, [id$="-error"]';
+            const errors = {}; const errorEls = new Set();
+            document.querySelectorAll(errorSelector).forEach((p, i) => {
+              if (!vis(p) || !txt(p)) return;
+              errorEls.add(p);
+              const owner = p.id && document.querySelector(`[aria-describedby~="${CSS.escape(p.id)}"]`);
+              errors[(owner && key(owner)) || p.id.replace(/[-_]?error$/i, '') || `#${i}`] = txt(p);
+            });
+            const first = sel => [...document.querySelectorAll(sel)].find(e => vis(e) && txt(e) && !errorEls.has(e));
+            const dl = {};
+            document.querySelectorAll('dt').forEach(dt => { dl[txt(dt)] = txt(dt.nextElementSibling); });
+            // 「見出しセル＋値セル」の行は項目と値の組として dl に入れ、一覧の行（table）には含めない
+            const pair = r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD';
+            document.querySelectorAll('tr').forEach(r => { if (pair(r) && !r.cells[1].querySelector('input, select, textarea')) dl[txt(r.cells[0])] = txt(r.cells[1]); });
+            // 一覧の表：見出し行（th）を持つ最初の表。なければ、入力部品を含まないデータ行（レイアウト用の表のフォームを一覧と見なさない）
+            const dataRow = r => !r.querySelector('th') && !pair(r) && vis(r);
+            const tableEl = [...document.querySelectorAll('table')].find(t => vis(t) && [...t.rows].some(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH'))) ?? null;
+            const rows = tableEl ? [...tableEl.querySelectorAll('tbody tr')].filter(dataRow) : [...document.querySelectorAll('tbody tr')].filter(r => dataRow(r) && !r.querySelector('input, select, textarea'));
+            // ダイアログの記録（DIALOG_HOOK が sessionStorage に積んだもの）を読み取り、読んだ分は消す
+            let dialogs = [];
+            try { dialogs = JSON.parse(sessionStorage.getItem('__dialogs') || '[]').map(d => d.message); sessionStorage.removeItem('__dialogs'); } catch {}
+            const rowsByKey = {}; const rowActions = {};
+            for (const r of rows) { const k = txt(r.cells[0]); if (!k) continue; rowsByKey[k] = [...r.cells].map(txt); rowActions[k] = [...r.querySelectorAll('a, button')].filter(vis).map(txt); }
+            const extra = {};
+            for (const [name, sel] of Object.entries(opt.extra ?? {})) extra[name] = txt(document.querySelector(sel)) || null;
+            return { title: txt(document.querySelector(opt.titleSelector ?? 'h1')), path: location.pathname, fields, checks, radios, errors, dl, dialogs,
+              alert: txt(first(opt.alertSelector ?? '[role=alert]')) || null, status: txt(first(opt.statusSelector ?? '[role=status]')) || null,
+              caption: txt(document.querySelector('caption')) || null, headers: tableEl ? [...[...tableEl.rows].find(r => r.cells.length > 1 && [...r.cells].every(c => c.tagName === 'TH')).cells].map(txt) : [],
+              table: rows.map(r => [...r.cells].map(txt)), rows: rowsByKey, rowActions, rowLinks: rows.map(r => !!r.querySelector('a')),
+              text: txt(document.querySelector('main') ?? document.body).slice(0, 4000),
+              buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(vis).map(b => txt(b) || b.value),
+              links: [...document.querySelectorAll('a[href]')].filter(vis).map(txt), ...extra };
+          })({"titleSelector":"section.content > header > h1, body > h1","alertSelector":".flash"})
+        name: A08
+      - recordToReport: A-08 ログアウト後
