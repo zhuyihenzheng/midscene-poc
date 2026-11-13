@@ -36,10 +36,18 @@ function label(expected) { return isMatcher(expected) ? expected.label : fmt(exp
 export function fmt(v) { return v === undefined ? '(未取得)' : typeof v === 'string' ? v : JSON.stringify(v); }
 
 // 'A.b.c' を o からたどる。配列の添字は数字、キーに「.」を含む場合は配列でパスを渡す（['X01', 'dl', '合計（税込.）']）
-export function pick(o, path) {
+export function pick(o, path) { return trace(o, path).value; }
+// pick と同じだが、途中で途切れた位置も返す：{ value, broken }。broken は「値のない途中のパス」（例 'X01.erorrs'）。
+// 最後のキーだけがない場合（errors に qty がない等）は broken にならない。先頭の名前（記録名）がない場合は broken
+function trace(o, path) {
+  const keys = Array.isArray(path) ? path : String(path).split('.');
   let v = o;
-  for (const k of Array.isArray(path) ? path : String(path).split('.')) { if (v === undefined || v === null) return undefined; v = k === 'length' && Array.isArray(v) ? v.length : v[k]; }
-  return v;
+  for (const [i, k] of keys.entries()) {
+    if (v === undefined || v === null) return { value: undefined, broken: keys.slice(0, i).join('.') };
+    v = k === 'length' && Array.isArray(v) ? v.length : v[k];
+    if (i === 0 && v === undefined) return { value: undefined, broken: String(k) };
+  }
+  return { value: v, broken: null };
 }
 
 // ケース 1 件を判定し、観点の配列を返す：{ desc, pass, actual, expected?, ai?, skipped? }
@@ -47,8 +55,11 @@ export function evaluate(c, o, ctx) {
   const items = [];
   const root = { ...o, journal: ctx.journal };
   for (const [desc, path, expected] of c.verify ?? []) {
-    const actual = pick(root, path);
+    const { value: actual, broken } = trace(root, path);
     if (expected?.ai) { items.push({ desc, ...ai(actual), expected: expected.label }); continue; }
+    // 記録がない・パスが途中で途切れている場合は、absent や not(...) でも合格にしない
+    // （記録前に止まった、またはパスの書き間違い。「値がないこと」を確かめたことにならない）
+    if (broken !== null) { items.push({ desc, pass: false, actual: `(未取得：${broken} がない)`, expected: label(expected), missing: true }); continue; }
     items.push({ desc, pass: test(expected, actual), actual: fmt(actual), expected: label(expected), missing: actual === undefined });
   }
   if (c.check) {

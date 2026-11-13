@@ -10,6 +10,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/logout'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「ログイン」画面が表示されている

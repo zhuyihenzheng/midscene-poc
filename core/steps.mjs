@@ -106,14 +106,18 @@ export function dialogHook() {
   window.prompt = (m, d) => { log('prompt', m); const a = answer(); return a === 'cancel' ? null : a ?? d ?? ''; };
 }
 export const DIALOG_HOOK = `(${dialogHook.toString()})()\n`;
+// 前のケースが残したダイアログの記録と答えの指定を消す（独立したケースの開始時にエンジンが実行する）。
+// 残っていると、前のケースで出なかったダイアログ用の「キャンセル」が次のケースの最初のダイアログに効いてしまう
+export const RESET_DIALOGS = `try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}\n`;
 // 次に出るダイアログへの答えを決める：'ok'（既定）/ 'cancel' / prompt に入力する文字列
 export const answerDialog = answer => ({ javascript: `sessionStorage.setItem('__dialogAnswer', ${JSON.stringify(answer)});\n` });
 
 // Midscene の YAML には goto がないため、遷移を setTimeout で予約して sleep で待つ（javascript ステップは遷移完了を待てない）。
 // dialogs:true のときは、ダイアログを出しうる操作（クリック・キー入力）の直前に差し替えを入れる
-export function toYamlSteps(step, { dialogs = false } = {}) {
+export function toYamlSteps(step, { dialogs = false, first = false } = {}) {
   if ('javascriptInFrame' in step) { const { frame, javascriptInFrame, ...rest } = step; return [rest]; }
-  if ('goto' in step) return [{ javascript: `setTimeout(() => { location.href = '${step.goto}'; }, 300);\n` }, { sleep: 1500 }];
+  // 独立したケースの開始（flow の先頭の goto）では、前のケースが残したダイアログの記録・答えの指定を消す
+  if ('goto' in step) return [{ javascript: `${dialogs && first ? RESET_DIALOGS : ''}setTimeout(() => { location.href = '${step.goto}'; }, 300);\n` }, { sleep: 1500 }];
   if (dialogs && ('aiTap' in step || 'aiKeyboardPress' in step)) return [{ javascript: DIALOG_HOOK }, step];
   // upload / download は Playwright エンジン専用。YAML では、ダウンロードはクリックだけ行い、アップロードは行わない（runner が警告する）
   if ('download' in step) return [{ aiTap: step.download }];

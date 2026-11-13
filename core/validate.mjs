@@ -28,6 +28,7 @@ export function validateCases(SUITES) {
         }
       }
       if (!c.verify?.length && typeof c.check !== 'function') out.push(`${at}：verify か check が必要（判定のないケースは OK にできない）`);
+      else if (typeof c.check !== 'function' && c.verify.every(v => v?.[2]?.ai)) out.push(`${at}：判定が AI（aiAssert）だけ。AI 判定は参考扱いで、記録値の判定が 1 つもないケースは OK にならない（state() の値を verify に加える）`);
       for (const [i, v] of (c.verify ?? []).entries()) {
         if (!Array.isArray(v) || v.length !== 3 || typeof v[0] !== 'string') { out.push(`${at}：verify[${i}] は [観点, パス, 期待値] の 3 要素`); continue; }
         if (v[2] === undefined) out.push(`${at}：verify[${i}]「${v[0]}」の期待値が undefined（値がないことは absent で書く）`);

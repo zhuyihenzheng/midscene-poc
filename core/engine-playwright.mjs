@@ -14,7 +14,7 @@
 // heal:true（要モデル）のとき、辞書で操作できなかったステップを AI で代替し、辞書の修正候補として記録する。
 import fs from 'fs'; import path from 'path';
 import { launch } from './browser.mjs';
-import { continues, DIALOG_HOOK } from './steps.mjs';
+import { continues, DIALOG_HOOK, RESET_DIALOGS } from './steps.mjs';
 import { watch } from './health.mjs';
 
 const DEFAULT_TIMEOUT = 15000;
@@ -74,6 +74,8 @@ export async function runSuite(suite, { site, outFile, shotsDir, traceFile, down
       monitor.setCase(c.id);
       let at = 0;
       try {
+        // 独立したケースの開始：前のケースが残したダイアログの記録・答えの指定を消す
+        if (site.dialogs && 'goto' in (c.flow[0] ?? {})) for (const p of pages) if (!p.isClosed()) await p.evaluate(RESET_DIALOGS).catch(() => {});
         for (; at < c.flow.length; at++) await step(current(), c.flow[at], { ...ctx, c, ci });
         await monitor.lint(current());
         tasks[c.id] = 'ok';

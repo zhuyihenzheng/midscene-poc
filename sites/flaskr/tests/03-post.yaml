@@ -10,6 +10,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/auth/login'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「Log In」画面が表示されている
@@ -279,6 +280,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/create'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「New Post」画面が表示されている

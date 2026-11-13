@@ -25,8 +25,8 @@
 //   design                    任意：設計書（Markdown）のパス。観点カバレッジと期待値の根拠確認に使う
 //   yamlStep(step)            任意：Midscene YAML 出力時のステップ変換
 //   startApp()                任意：試験対象が起動していなければ起動し、停止関数を返す
-//   beforeSuite(s) → state    任意：スイート前処理（データ初期化・受信履歴リセットなど）
-//   afterSuite(s, state) → journal  任意：スイート後処理。戻り値は out/<スイート>-journal.json に保存し、判定の journal になる
+//   beforeSuite(s) → state    任意：スイート前処理（データ初期化・受信履歴リセットなど）。失敗（例外）したスイートは実行せず、全ケースを実行不能にする
+//   afterSuite(s, state) → journal  任意：スイート後処理。戻り値は out/<スイート>-journal.json に保存し、判定の journal になる。失敗（例外）したら journal を使うケースを実行不能にする
 //   emptyJournal              journal がないときの値
 //   settle(page)              任意：操作後の待ち（既定は読み込み完了＋通信の静止）
 //   parallel                  任意：true でスイートの並列実行（--workers）を許可する。スイートどうしがデータを共有しないサイトだけ
@@ -46,7 +46,7 @@ import { compareVisual, visualItems } from './visual.mjs';
 import { validateCases } from './validate.mjs';
 import { writeCoverage } from './coverage.mjs';
 import { loadBaseline, compareBaseline, saveBaseline } from './baseline.mjs';
-import { writeSpec, writeResult, writeMd, writeHtml, writeJunit, writeBugDrafts } from './report.mjs';
+import { writeSpec, writeResult, writeMd, writeHtml, writeJunit, writeBugDrafts, warningGroups } from './report.mjs';
 
 const HELP = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(3, 21).map(l => l.replace(/^\/\/ ?/, '')).join('\n');
 
@@ -73,7 +73,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   for (const s of SUITES) {
     const doc = { web: { url: site.url, cookie: rel(site.cookieFile), viewportWidth: site.viewport.width, viewportHeight: site.viewport.height,
       output: rel(OUT + `out/${s.file}.json`) },
-      tasks: s.cases.map(c => ({ name: `${c.id}_${c.title}`, continueOnError: true, flow: c.flow.flatMap(st => toYamlSteps(st, { dialogs: !!site.dialogs })).map(site.yamlStep ?? (st => st)) })) };
+      tasks: s.cases.map(c => ({ name: `${c.id}_${c.title}`, continueOnError: true, flow: c.flow.flatMap((st, i) => toYamlSteps(st, { dialogs: !!site.dialogs, first: i === 0 })).map(site.yamlStep ?? (st => st)) })) };
     fs.writeFileSync(OUT + s.file + '.yaml', `# 自動生成（cases.mjs）：${s.title}\n` + yaml.dump(doc, { lineWidth: 200, noRefs: true }));
   }
   await writeSpec(OUT + '試験仕様書.xlsx', SUITES);
@@ -139,7 +139,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   const count = v => results.filter(r => r.verdict === v).length;
   const summary = { site: site.name, date: new Date().toLocaleString('sv-SE'), total: results.length, ok: count('OK'), ng: count('NG'), blocked: count('ブロック'),
     known: diff.known, fresh: diff.fresh, changed: diff.changed, resolved: diff.resolved, flaky: results.filter(r => r.flaky).map(r => r.c.id),
-    healed: results.filter(r => r.healed.length).map(r => r.c.id), visualDiff: results.filter(r => r.items.some(i => i.visual)).map(r => r.c.id), warnings: results.reduce((n, r) => n + r.items.filter(i => i.warn).length, 0),
+    healed: results.filter(r => r.healed.length).map(r => r.c.id), visualDiff: results.filter(r => r.items.some(i => i.visual)).map(r => r.c.id), warnings: results.reduce((n, r) => n + r.items.filter(i => i.warn).length, 0), warningKinds: warningGroups(results).length,
     exitCode: unexpected.length ? 1 : 0,
     cases: results.map(r => ({ id: r.c.id, verdict: r.verdict, cause: r.cause, diff: r.diff, ng: r.ng })) };
 
@@ -156,7 +156,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   console.log(`\n結果：${summary.ok}/${summary.total} OK` + (summary.ng ? `、NG ${summary.ng}` : '') + (summary.blocked ? `、ブロック ${summary.blocked}` : '')
     + `　基準比：${unexpected.length ? `想定外 ${unexpected.length} 件（${unexpected.map(r => `${r.c.id} ${r.diff}`).join('、')}）` : '想定どおり'}`
     + (diff.known.length ? `、既知の NG ${diff.known.length}` : '') + (diff.resolved.length ? `、解消 ${diff.resolved.length}（${diff.resolved.join(', ')}：--update-baseline で基準を更新）` : '')
-    + (summary.flaky.length ? `、不安定 ${summary.flaky.join(', ')}` : '') + (summary.healed.length ? `、AI で代替 ${summary.healed.join(', ')}` : '') + (summary.visualDiff.length ? `、見た目の違い ${summary.visualDiff.join(', ')}` : '') + (summary.warnings ? `、注意 ${summary.warnings} 件` : ''));
+    + (summary.flaky.length ? `、不安定 ${summary.flaky.join(', ')}` : '') + (summary.healed.length ? `、AI で代替 ${summary.healed.join(', ')}` : '') + (summary.visualDiff.length ? `、見た目の違い ${summary.visualDiff.join(', ')}` : '') + (summary.warnings ? `、注意 ${summary.warningKinds} 種類（延べ ${summary.warnings} 件）` : ''));
   console.log(`レポート：${rel(OUT + 'report.html')}`);
   if (summary.exitCode) fail();
   return { results, summary, exitCode: summary.exitCode };
@@ -164,18 +164,25 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
 
 // スイートを 1 回実行する。ログイン失敗などエンジンごと落ちた場合も記録して次のスイートへ進む
 async function runOnce(site, s, engine, flags) {
-  const state = site.beforeSuite ? await site.beforeSuite(s) : undefined;
-  const t0 = Date.now(); let run, journal;
-  try { run = engine !== 'midscene' ? await runPlaywright(site, s, { ...flags, ai: engine === 'ai' }) : await runMidscene(site, s); }
-  catch (e) {
+  const t0 = Date.now(); let run, journal, state, journalError = null;
+  const allFailed = fatal => ({ report: null, tasks: Object.fromEntries(s.cases.map(c => [c.id, 'failed'])), info: Object.fromEntries(s.cases.map(c => [c.id, { error: fatal, healed: [] }])), error: [fatal], fatal });
+  try {
+    // 前処理（データの初期化など）に失敗したら、そのスイートは実行しない（初期化されていないデータで出た結果は信用できない）。他のスイートは続ける
+    try { state = site.beforeSuite ? await site.beforeSuite(s) : undefined; }
+    catch (e) { throw new Error(`前処理（beforeSuite）に失敗：${e.message.split('\n')[0]}`); }
+    run = engine !== 'midscene' ? await runPlaywright(site, s, { ...flags, ai: engine === 'ai' }) : await runMidscene(site, s);
+  } catch (e) {
     const fatal = e.message.split('\n')[0];
     flags.print(`  ✖ スイートを実行できません：${fatal}`);
     fs.rmSync(site.out + `out/${s.file}.json`, { force: true });
-    run = { report: null, tasks: Object.fromEntries(s.cases.map(c => [c.id, 'failed'])), info: Object.fromEntries(s.cases.map(c => [c.id, { error: fatal, healed: [] }])), error: [fatal], fatal };
-  } finally { journal = site.afterSuite ? await Promise.resolve(site.afterSuite(s, state)).catch(() => undefined) : undefined; }
+    run = allFailed(fatal);
+  } finally {
+    // 後処理（送信電文の取得など）の失敗は記録する。黙って「電文なし」として判定すると、「送信していないこと」の確認が誤って合格になる
+    journal = site.afterSuite ? await Promise.resolve().then(() => site.afterSuite(s, state)).catch(e => { journalError = e.message.split('\n')[0]; flags.print(`  ✖ 後処理（afterSuite）に失敗：${journalError}`); return undefined; }) : undefined;
+  }
   const jFile = site.out + `out/${s.file}-journal.json`;
   if (journal !== undefined) fs.writeFileSync(jFile, JSON.stringify(journal, null, 1)); else fs.rmSync(jFile, { force: true });
-  return { engine, aiAssert: engine === 'playwright' ? flags.aiAssert : true, sec: Math.round((Date.now() - t0) / 1000), ...run };
+  return { engine, aiAssert: engine === 'playwright' ? flags.aiAssert : true, sec: Math.round((Date.now() - t0) / 1000), ...run, journalError };
 }
 
 // スイートの出力を判定する。verdict：OK / NG / ブロック、cause（NG の分類）：不一致（不具合の候補）/ 実行不能（操作できず。画面変更か試験側の問題）
@@ -184,6 +191,9 @@ export function evaluateSuite(site, s, runs) {
   const read = f => fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
   const o = read(site.out + `out/${s.file}.json`) ?? {};
   const ctx = { journal: read(site.out + `out/${s.file}-journal.json`) ?? site.emptyJournal ?? {} };
+  // 後処理に失敗して journal がないスイート：journal を読んだケースを見分ける（verify のパスでも、check 関数やその下請けの関数でも）
+  let journalRead = false;
+  if (run.journalError) ctx.journal = new Proxy(ctx.journal, { get(t, k) { journalRead = true; return t[k]; }, has(t, k) { journalRead = true; return k in t; }, ownKeys(t) { journalRead = true; return Reflect.ownKeys(t); } });
   const health = read(site.out + `out/${s.file}-health.json`);
   const visual = read(site.out + `out/${s.file}-visual.json`);
   const results = []; let prev = null;
@@ -191,7 +201,10 @@ export function evaluateSuite(site, s, runs) {
     const task = run.tasks?.[c.id] ?? '-';
     const blocked = task === 'blocked' || (!!prev && continues(c) && ['failed', 'blocked'].includes(prev.task) && task !== 'ok');
     let items;
+    journalRead = false;
     try { items = evaluate(c, o, ctx); } catch (e) { items = [{ desc: '判定処理', pass: false, actual: '例外：' + e.message, missing: true }]; }
+    // 後処理に失敗して journal がないスイート：journal を使うケースは判定できない（実行不能）
+    if (run.journalError && journalRead) items.push({ desc: '後処理（afterSuite）：送信電文などの取得', pass: false, expected: '取得できる', actual: `(未取得：${run.journalError})`, missing: true });
     if (health && !blocked) items.push(...healthItems(health[c.id]));
     items.push(...visualItems(visual, c.id));
     const info = run.info?.[c.id] ?? {};

@@ -10,6 +10,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/auth/login'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「Log In」画面が表示されている
@@ -94,6 +95,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/1/update'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「Forbidden」画面が表示されている
@@ -156,6 +158,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/999/update'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「Not Found」画面が表示されている

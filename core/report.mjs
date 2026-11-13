@@ -75,6 +75,19 @@ function engineLine(site, rs, runs) {
     : `Midscene ${engineVersion('@midscene/web')} ＋ ${process.env.MIDSCENE_MODEL_NAME}、ブラウザ操作は AI（aiTap/aiInput）`).join('／') };
 }
 
+// 注意（warn）を「種別＋内容」でまとめる。同じ検出（例：ラベルのない同じ入力欄）は全ケースに出るため、1 件として数え、出たケースを並べる
+export function warningGroups(rs) {
+  const groups = new Map();
+  for (const r of rs) for (const i of r.items.filter(i => i.warn)) {
+    const kind = i.desc.replace(/^自動検査（注意）：/, ''); const key = kind + '\u0000' + i.actual;
+    if (!groups.has(key)) groups.set(key, { kind, detail: i.actual, cases: [] });
+    if (!groups.get(key).cases.includes(r.c.id)) groups.get(key).cases.push(r.c.id);
+  }
+  return [...groups.values()];
+}
+// 待ち（aiWaitFor）で止まったケースの説明。値の不一致が「待ちの失敗」から来ていることを読む人に伝える
+const waitNote = r => `待ち「${r.waitFailed}」が成立せず停止し、その時点の画面を記録した（応答が遅いだけの可能性があれば --retries で再確認）`;
+
 function summaryLine(sum) {
   return `**${sum.ok}/${sum.total} ケース OK**` + (sum.ng ? `、NG ${sum.ng}` : '') + (sum.blocked ? `、ブロック ${sum.blocked}` : '');
 }
@@ -101,11 +114,11 @@ export function writeMd(file, site, rs, runs, sum) {
   for (const r of rs) {
     const hard = hardOf(r);
     const mark = r.verdict === 'OK' ? '✅ OK' : r.verdict === 'NG' ? `❌ NG（${r.cause}）` : '⏸ ブロック';
-    const ng = r.verdict === 'ブロック' ? r.error ?? '' : hard.filter(i => !i.pass).map(i => `${i.desc}（${i.actual}）`).join('<br>');
+    const ng = r.verdict === 'ブロック' ? r.error ?? '' : [...hard.filter(i => !i.pass).map(i => `${i.desc}（${i.actual}）`), ...(r.verdict === 'NG' && r.waitFailed ? [waitNote(r)] : [])].join('<br>');
     lines.push(`| ${r.c.id} | ${r.c.screen} | ${r.c.title} | ${mark} | ${r.diff === '一致' ? '' : r.diff} | ${hard.filter(i => i.pass).length}/${hard.length} | ${aiLabel(r)} | ${ng.replace(/\|/g, '｜')} |`);
   }
-  const warns = rs.flatMap(r => r.items.filter(i => i.warn).map(i => `- ${r.c.id}：${i.desc.replace(/^自動検査（注意）：/, '')}（${i.actual}）`));
-  if (warns.length) lines.push('', '## 注意（合否には含めない自動検査の検出）', '', ...warns);
+  const warns = warningGroups(rs).map(g => `- ${g.kind}（${g.detail}）：${g.cases.slice(0, 5).join(', ')}${g.cases.length > 5 ? ` ほか ${g.cases.length - 5} ケース` : ''}`);
+  if (warns.length) lines.push('', '## 注意（合否には含めない自動検査の検出。同じ内容は 1 行にまとめる）', '', ...warns);
   lines.push('', '## 判定の読み方', '',
     '- **NG（不一致）**：値は取得できたが期待値と違う。不具合の候補（`不具合票ドラフト.md` に下書きあり）。',
     '- **NG（実行不能）**：操作できず値を取得できなかった。画面の変更か試験側（ロケーター辞書・待ち）の問題。',
@@ -131,6 +144,7 @@ export function writeBugDrafts(file, site, rs, evidence, runs) {
       `- 画面：${r.c.screen}　区分：${r.c.kind}`, ...(r.note ? [`- 備考：${r.note}`] : []), '', '### 手順', '', ...r.c.steps.split('\n'), '',
       '### 期待結果（設計書）', '', ...r.c.expect.split('\n'), '', '### 実際の結果', '',
       '| 確認観点 | 期待値 | 実測値 |', '|---|---|---|', ...fails.map(i => `| ${i.desc} | ${(i.expected ?? '（期待結果のとおり）').replace(/\|/g, '｜')} | ${String(i.actual).replace(/\|/g, '｜')} |`), '',
+      ...(r.waitFailed ? [waitNote(r), ''] : []),
       ...(r.error ? [`実行時のエラー：${r.error}`, ''] : []),
       '### 証跡', '', ...(evidence[r.c.id] ?? []).map(e => `- ${e.label}：${e.file}`), ...(runs[r.suite.file]?.report ? [`- ${r.engine !== 'midscene' ? 'Playwright Trace' : 'Midscene レポート'}：${rel(runs[r.suite.file].report)}`] : []), '',
       '### 再現', '', '```bash', `node ${rel(site.dir + 'run.mjs').slice(2)} --engine ${r.engine} --only ${r.suite.file}`, '```', '');
@@ -176,7 +190,7 @@ export function writeHtml(file, site, rs, evidence, runs, sum) {
 <span class="meta">${r.diff && r.diff !== '一致' ? `<span class="diff${unexpected(r) ? ' alert' : ''}">${h(r.diff)}</span>` : ''}${r.flaky ? '<span class="diff">不安定</span>' : ''}${r.healed.length ? '<span class="diff">AI で代替</span>' : ''}
 <span class="score">${hard.filter(i => i.pass).length}/${hard.length}</span></span></summary>
 <div class="body"><dl class="info"><dt>画面</dt><dd>${h(r.c.screen)}</dd><dt>区分</dt><dd>${h(r.c.kind)}</dd><dt>手順</dt><dd>${h(r.c.steps)}</dd><dt>期待結果</dt><dd>${h(r.c.expect)}</dd>
-${r.error && r.verdict !== 'OK' ? `<dt>実行時のエラー</dt><dd class="err">${h(r.error)}</dd>` : ''}${r.note ? `<dt>備考（基準）</dt><dd>${h(r.note)}</dd>` : ''}</dl>
+${r.waitFailed && r.verdict === 'NG' ? `<dt>待ちで停止</dt><dd class="err">${h(waitNote(r))}</dd>` : ''}${r.error && r.verdict !== 'OK' ? `<dt>実行時のエラー</dt><dd class="err">${h(r.error)}</dd>` : ''}${r.note ? `<dt>備考（基準）</dt><dd>${h(r.note)}</dd>` : ''}</dl>
 <div class="scroll"><table><thead><tr><th>確認観点</th><th>種別</th><th>期待値</th><th>実測値</th><th>結果</th></tr></thead><tbody>
 ${r.items.map(i => `<tr class="${itemRes(i) === 'NG' ? 'rng' : ''}"><td>${h(i.desc)}</td><td>${itemType(i)}</td><td>${h(i.expected ?? '')}</td><td>${h(i.actual)}</td><td class="res ${{ OK: 'ok', NG: 'ng', 注意: 'warn', 未実施: 'bl' }[itemRes(i)]}">${itemRes(i)}</td></tr>`).join('\n')}
 </tbody></table></div>
@@ -208,7 +222,7 @@ tr.rng td{background:var(--ngbg)}.res{font-weight:700;white-space:nowrap}.res.ok
 <h1>${h(report.title)}</h1>
 <p class="sub">実施：${h(sum.date)}　対象：${h(report.target())}　実行：${h(eng.text)}</p>
 <div class="cards"><div class="card"><b>${sum.total}</b><span>ケース</span></div><div class="card ok"><b>${sum.ok}</b><span>OK</span></div><div class="card ng"><b>${sum.ng}</b><span>NG</span></div>
-<div class="card bl"><b>${sum.blocked}</b><span>ブロック</span></div><div class="card"><b>${sum.fresh.length + sum.changed.length}</b><span>想定外（基準比）</span></div><div class="card"><b>${sum.warnings}</b><span>注意</span></div></div>
+<div class="card bl"><b>${sum.blocked}</b><span>ブロック</span></div><div class="card"><b>${sum.fresh.length + sum.changed.length}</b><span>想定外（基準比）</span></div><div class="card"><b>${sum.warningKinds ?? sum.warnings}</b><span>注意（種類）</span></div></div>
 <p class="verdict${sum.exitCode ? ' alert' : ''}">${sum.exitCode ? `基準と違う結果が ${sum.fresh.length + sum.changed.length} 件あります。確認が必要です。` : '基準どおりの結果です。' + (sum.known.length ? `（既知の NG ${sum.known.length} 件）` : '')}</p>
 ${notes.length ? `<ul class="notes">${notes.map(n => `<li>${h(n)}</li>`).join('')}</ul>` : ''}
 <div class="filters" role="group" aria-label="表示の絞り込み">${[['all', `すべて ${sum.total}`], ['u', `想定外 ${sum.fresh.length + sum.changed.length}`], ['ng', `NG ${sum.ng}`], ['bl', `ブロック ${sum.blocked}`], ['ok', `OK ${sum.ok}`]].map(([k, t], i) => `<button type="button" data-f="${k}" aria-pressed="${i === 0}">${t}</button>`).join('')}</div>

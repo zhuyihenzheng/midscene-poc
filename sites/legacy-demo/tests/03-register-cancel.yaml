@@ -10,6 +10,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders/new'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注登録」画面が表示されている
@@ -301,6 +302,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders/J-0002'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注詳細」画面が表示されている

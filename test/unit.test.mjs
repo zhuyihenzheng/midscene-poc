@@ -161,3 +161,24 @@ test('coverage：「メッセージ」列のある表からは、句点で終わ
   const { rows } = analyze(md, [{ cases: [mk('A-01', { verify: [['重複', 'A01', 'User alice is already registered.']] })] }]);
   assert.deepEqual(rows.filter(r => r.type === 'メッセージ').map(r => [r.key, r.cases]), [['Incorrect password.', []], ['User {username} is already registered.', ['A-01']]]);
 });
+
+test('check：記録がない・パスが途中で途切れている場合は、absent や not でも合格にしない', () => {
+  const c = { verify: [
+    ['途中の書き間違い', 'S.erorrs.qty', absent], ['記録されていない名前', 'Z99', absent], ['記録されていない名前の否定', 'Z99.title', not('エラー')], ['null の先', 'S.alert.text', absent],
+    ['最後のキーだけがない', 'S.errors.qty', absent], ['電文の項目がない', 'journal.ledger', absent]] };
+  const by = Object.fromEntries(evaluate(c, { S: { errors: {}, alert: null } }, { journal: {} }).map(i => [i.desc, i]));
+  for (const d of ['途中の書き間違い', '記録されていない名前', '記録されていない名前の否定', 'null の先']) assert.deepEqual([by[d].pass, by[d].missing], [false, true], d);
+  assert.equal(by['途中の書き間違い'].actual, '(未取得：S.erorrs がない)');
+  for (const d of ['最後のキーだけがない', '電文の項目がない']) assert.equal(by[d].pass, true, d);
+});
+
+test('validate：判定が AI だけのケースを指摘する', () => {
+  const c = { id: 'A-01', screen: 'S01 画面', kind: '表示', title: 't', steps: 's', expect: 'e', flow: [{ goto: '/' }, { aiAssert: '見出しがある', name: 'A01_ai' }], verify: [['AI：見出し', 'A01_ai', AI]] };
+  assert.match(validateCases([{ file: '01-a', title: 'a', cases: [c] }]).join('\n'), /A-01：判定が AI（aiAssert）だけ/);
+});
+
+test('YAML：ダイアログを記録するサイトでは、ケースの先頭の goto だけが前のケースの記録・答えを消す', () => {
+  const js = opt => toYamlSteps({ goto: '/a' }, opt)[0].javascript;
+  assert.match(js({ dialogs: true, first: true }), /removeItem\('__dialogAnswer'\)/);
+  for (const opt of [{ dialogs: true, first: false }, { dialogs: false, first: true }, {}]) assert.doesNotMatch(js(opt), /removeItem/);
+});

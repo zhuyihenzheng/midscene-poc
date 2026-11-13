@@ -3,10 +3,10 @@ import './fixture/quiet.mjs';
 import test, { before, after } from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs';
 import { runTests } from '../core/runner.mjs';
-import { makeState, go, shot, upload, download } from '../core/steps.mjs';
+import { makeState, go, shot, upload, download, answerDialog } from '../core/steps.mjs';
 import { createLocators, DEFAULTS, inFrame } from '../core/locators.mjs';
 import path from 'path'; import { fileURLToPath } from 'url';
-import { includes, not } from '../core/check.mjs';
+import { includes, not, count } from '../core/check.mjs';
 import { startFixture, makeSite, base } from './fixture/site.mjs';
 
 const state = makeState();
@@ -224,4 +224,51 @@ test('待ち（aiWaitFor）で止まったケースは、その時点の画面�
   assert.deepEqual([w1.verdict, w1.cause, w2.verdict, w2.cause], ['NG', '不一致', 'NG', '実行不能']);
   assert.equal(w1.items.find(i => i.desc === '完了メッセージ').actual, '保存しました。', '実際に表示された文言が残る');
   assert.equal(w1.items.find(i => i.desc === '画面').pass, true);
+  // 不一致が「待ちの失敗」から来ていることを結果に残す（応答が遅いだけの場合と見分ける手がかり）
+  for (const f of ['結果一覧.md', '不具合票ドラフト.md', 'report.html']) assert.ok(fs.readFileSync(site.dir + f, 'utf8').includes('待ち「「登録しました。」と表示されている」が成立せず停止'), f);
+});
+
+const sent = c => c.journal.requests;
+test('後処理（afterSuite）に失敗したら、送信電文を使うケースは実行不能にする（「送信なし」を合格にしない）', async () => {
+  const suites = [{ file: '01-j', title: '電文', cases: [
+    { ...base, id: 'J-01', title: '送信しない', flow: [...go('/', 'ホーム'), state('J01')], verify: [['見出し', 'J01.title', 'ホーム'], ['送信なし', 'journal.requests', count(0)]] },
+    { ...base, id: 'J-02', title: '電文を使わない', flow: [...go('/', 'ホーム'), state('J02')], verify: [['見出し', 'J02.title', 'ホーム']] },
+    { ...base, id: 'J-03', title: '関数形式で電文を使う', flow: [...go('/', 'ホーム'), state('J03')], check: (o, ctx) => [['送信なし', ctx.journal.requests.length === 0, ctx.journal.requests.length]] },
+    // 下請けの関数を通して読む場合（check のソースに journal の文字が出てこない）
+    { ...base, id: 'J-04', title: '関数を通して電文を使う', flow: [...go('/', 'ホーム'), state('J04')], check: (o, ctx) => [['送信なし', sent(ctx).length === 0, sent(ctx).length]] },
+  ] }];
+  const ok = await run(makeSite(fx.url, suites, { afterSuite: async () => ({ requests: [] }), emptyJournal: { requests: [] } }));
+  assert.deepEqual(ok.summary.cases.map(c => c.verdict), ['OK', 'OK', 'OK', 'OK']);
+  const r = await run(makeSite(fx.url, suites, { afterSuite: async () => { throw new Error('スタブに接続できません'); }, emptyJournal: { requests: [] } }));
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.cause]), [['NG', '実行不能'], ['OK', null], ['NG', '実行不能'], ['NG', '実行不能']]);
+  assert.match(r.results[0].items.find(i => /後処理/.test(i.desc)).actual, /スタブに接続できません/);
+  assert.equal(r.exitCode, 1);
+});
+
+test('前処理（beforeSuite）に失敗したスイートは全ケース実行不能にし、他のスイートは続ける', async () => {
+  const suite = (n, id) => ({ file: `0${n}-b`, title: `前処理 ${n}`, cases: [{ ...base, id, title: 't', flow: [...go('/', 'ホーム'), state(id.replace('-', ''))], verify: [['見出し', `${id.replace('-', '')}.title`, 'ホーム']] }] });
+  const site = makeSite(fx.url, [suite(1, 'B-01'), suite(2, 'B-02')], { beforeSuite: async s => { if (s.file === '01-b') throw new Error('初期化 API が 500'); } });
+  const r = await run(site);
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.cause]), [['NG', '実行不能'], ['OK', null]]);
+  assert.equal(r.results[0].error, '前処理（beforeSuite）に失敗：初期化 API が 500');
+});
+
+test('ダイアログ：前のケースが残した答えの指定・記録は、次の独立したケースに持ち越さない', async () => {
+  const site = makeSite(fx.url, [{ file: '01-dialog', title: 'ダイアログ', cases: [
+    // キャンセルして画面に残る。その後、出なかったダイアログ用の「キャンセル」と、state() で読まれていない記録が残る
+    { ...base, id: 'D-01', title: 'キャンセルして残る', flow: [...go('/fixed-dialog', '削除'), answerDialog('cancel'), { aiTap: '「削除」ボタン' }, state('D01'), answerDialog('cancel'), answerDialog('cancel'), { aiTap: '「削除」ボタン' }, answerDialog('cancel')],
+      verify: [['画面に残る', 'D01.title', '削除'], ['ダイアログ', 'D01.dialogs', ['削除します。よろしいですか？']]] },
+    { ...base, id: 'D-02', title: '次のケースは OK で進む', flow: [...go('/fixed-dialog', '削除'), { aiTap: '「削除」ボタン' }, screen('保存完了'), state('D02')],
+      verify: [['完了画面', 'D02.title', '保存完了'], ['このケースのダイアログだけ', 'D02.dialogs', ['削除します。よろしいですか？']]] },
+  ] }], { dialogs: true });
+  const r = await run(site);
+  assert.deepEqual(r.summary.cases.map(c => [c.verdict, c.ng]), [['OK', []], ['OK', []]]);
+});
+
+test('注意：同じ検出は 1 種類として数え、出たケースをまとめて示す', async () => {
+  const site = makeSite(fx.url, [{ file: '01-warn', title: '注意', cases: ['N-01', 'N-02', 'N-03'].map(id => (
+    { ...base, id, title: '横に長い画面', flow: [...go('/wide', '横長'), state(id.replace('-', ''))], verify: [['見出し', `${id.replace('-', '')}.title`, '横長']] })) }]);
+  const r = await run(site);
+  assert.deepEqual([r.summary.warnings, r.summary.warningKinds], [6, 2]);
+  assert.match(fs.readFileSync(site.dir + '結果一覧.md', 'utf8'), /- ラベルのない入力欄（memo）：N-01, N-02, N-03\n/);
 });

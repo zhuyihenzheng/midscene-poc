@@ -36,7 +36,7 @@ Each site's `cases.mjs` is the single source for all engines; do not fork flows 
 
 ## Verdicts and Baseline
 
-A case is OK, NG（不一致）(a recorded value differs from the design document: suspected defect), NG（実行不能）(the flow could not run: test fault or changed screen), or ブロック (it continues from a case that failed to execute). `sites/<name>/tests/baseline.json` lists the known NG cases; the runner exits with code 1 only when a result differs from it. Do not edit expected values, the baseline, or `health.ignore` to make a run pass: whether a failure is a known defect is a human decision.
+A case is OK, NG（不一致）(a recorded value differs from the design document: suspected defect), NG（実行不能）(the flow could not run: test fault or changed screen), or ブロック (it continues from a case that failed to execute). `sites/<name>/tests/baseline.json` lists the known NG cases; the runner exits with code 1 only when a result differs from it. A check on a value that was never recorded fails even when it expects absence, a suite whose `beforeSuite` throws is not run, and a failed `afterSuite` makes the cases that read `journal` NG（実行不能）: missing data is never read as a pass. Do not edit expected values, the baseline, or `health.ignore` to make a run pass: whether a failure is a known defect is a human decision.
 
 ## Adding a New Site
 

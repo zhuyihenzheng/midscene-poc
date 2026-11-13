@@ -92,13 +92,15 @@ Pass site-specific selectors to `makeState({ titleSelector, errorSelector, alert
 
 ### Dialogs
 
-Older screens report input errors and ask for confirmation with browser dialogs, which are not in the DOM. With `dialogs: true` in `site.mjs`, the runner replaces `alert` / `confirm` / `prompt` in the page: each message is recorded, and the dialog is answered OK unless an `answerDialog('cancel')` step precedes the operation. Verify the messages with `['ダイアログ', 'X01.dialogs', ['登録します。よろしいですか？']]`. Put `answerDialog('cancel')` before an operation that must not go through if a defect lets a confirm dialog appear (see T-05 in legacy-demo).
+Older screens report input errors and ask for confirmation with browser dialogs, which are not in the DOM. With `dialogs: true` in `site.mjs`, the runner replaces `alert` / `confirm` / `prompt` in the page: each message is recorded, and the dialog is answered OK unless an `answerDialog('cancel')` step precedes the operation. Verify the messages with `['ダイアログ', 'X01.dialogs', ['登録します。よろしいですか？']]`. Put `answerDialog('cancel')` before an operation that must not go through if a defect lets a confirm dialog appear (see T-05 in legacy-demo). An independent case (one that starts with `go()`) starts with no pending answer and no unread dialog messages, so an `answerDialog` that no dialog consumed does not leak into the next case.
 
 ## Checks
 
 `verify` is a list of `[観点, path, expected]`. The path's first segment is a recorded name, or `journal` for what `site.afterSuite` returned (backend requests or the ledger). Use an array path when a key contains a dot.
 
 `expected` is a literal (strings, numbers, arrays, and objects compare for exact equality) or a matcher from `core/check.mjs`:
+
+A row whose path stops before its last key fails as 未取得, even with `absent` or `not(…)`: the name was never recorded, or the path is misspelled (`X01.erorrs.qty`). Only the last key may be missing. To assert that a field does not exist, write `['…', 'X01.fields.memo', absent]`, not `'X01.fields.memo.value'`.
 
 | Matcher | Passes when |
 |---|---|
@@ -123,7 +125,11 @@ Read every expected value from the design document; the current page is only the
 | NG（実行不能） | the flow could not run, so values are missing | Test fault or changed screen: fix the flow, the dictionary, or the wait |
 | ブロック | the case continues from a case that failed to execute | Resolve the earlier case, then re-run |
 
-In Playwright mode every case also gets automatic checks (`core/health.mjs`): an uncaught JS exception, an HTTP 5xx response, a broken image, or visible `undefined` / `NaN` / `[object Object]` text makes the case NG; horizontal overflow, clipped text, unlabeled inputs, duplicate ids, `console.error`, and same-origin 4xx responses are listed as 注意 without changing the verdict. Exclude a known false positive with `site.health = { ignore: [/regex on "種別：内容"/] }`.
+A suite whose `beforeSuite` throws is not run: all its cases are NG（実行不能）, and the other suites continue. When `afterSuite` throws, the cases that read `journal` are NG（実行不能）; a missing journal is never treated as "nothing was sent". Make both hooks throw on failure (check `response.ok` after `fetch`).
+
+When a case stops at an `aiWaitFor`, the remaining `state()` steps still record the page, so the verdict is NG（不一致）with the actual values, and the report names the wait that stopped. If the application may only have been slow, re-run with `--retries 1` before reporting a defect.
+
+In Playwright mode every case also gets automatic checks (`core/health.mjs`): an uncaught JS exception, an HTTP 5xx response, a broken image, or visible `undefined` / `NaN` / `[object Object]` text makes the case NG; horizontal overflow, clipped text, unlabeled inputs, duplicate ids, `console.error`, and same-origin 4xx responses are listed as 注意 without changing the verdict. The same finding in many cases is counted once (`注意 N 種類`) and listed on one line with its case IDs. Exclude a known false positive with `site.health = { ignore: [/regex on "種別：内容"/] }`.
 
 With `--visual`, each `shot()` is also compared with the image in `visual-baseline/` (registered on the first run, per machine, not committed). A difference is a 注意 with a diff image, not an NG. Mask elements that change on every run with `site.visual = { mask: ['#clock'], threshold: 0.001 }`.
 
@@ -168,4 +174,4 @@ Use this file's `locators` as `site.locators`. Keep the prompt wording in the sa
 
 ## Before running
 
-`node sites/<name>/tests/run.mjs --engine playwright --build-only` needs no browser. It must print `ロケーター辞書：全指示文を解決可` and report no ケース定義の誤り (duplicate IDs, a `verify` path whose name no step records, an evidence label without the case ID, a case without checks). With `site.design` set, it also writes `観点カバレッジ.md`: design-document screens and messages without a case, and expected values without a basis in the design document.
+`node sites/<name>/tests/run.mjs --engine playwright --build-only` needs no browser. It must print `ロケーター辞書：全指示文を解決可` and report no ケース定義の誤り (duplicate IDs, a `verify` path whose name no step records, an evidence label without the case ID, a case without checks, a case whose only checks are `AI`). With `site.design` set, it also writes `観点カバレッジ.md`: design-document screens and messages without a case, and expected values without a basis in the design document.

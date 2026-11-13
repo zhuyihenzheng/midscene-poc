@@ -10,6 +10,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注検索」画面が表示されている
@@ -146,6 +147,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注検索」画面が表示されている
@@ -236,6 +238,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注検索」画面が表示されている
@@ -315,6 +318,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注検索」画面が表示されている
@@ -392,6 +396,7 @@ tasks:
     continueOnError: true
     flow:
       - javascript: |
+          try { sessionStorage.removeItem('__dialogs'); sessionStorage.removeItem('__dialogAnswer'); } catch {}
           setTimeout(() => { location.href = '/orders'; }, 300);
       - sleep: 1500
       - aiWaitFor: 「受注検索」画面が表示されている
