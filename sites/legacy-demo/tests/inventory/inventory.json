@@ -1,0 +1,414 @@
+[
+ {
+  "url": "/orders",
+  "title": "受注管理",
+  "h1": "受注検索",
+  "headings": [],
+  "fields": [
+   {
+    "label": "顧客名",
+    "type": "text",
+    "name": "q",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "ステータス",
+    "type": "select",
+    "name": "st",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false,
+    "options": [
+     "すべて",
+     "受付",
+     "出荷済",
+     "取消"
+    ]
+   }
+  ],
+  "groups": [
+   {
+    "group": "至急",
+    "type": "checkbox",
+    "name": "urgent",
+    "options": [
+     {
+      "label": "至急",
+      "value": "1",
+      "checked": false
+     }
+    ],
+    "visible": true
+   }
+  ],
+  "buttons": [
+   "検索",
+   "新規登録"
+  ],
+  "links": [
+   {
+    "text": "ログアウト",
+    "href": "/logout"
+   },
+   {
+    "text": "J-0001",
+    "href": "/orders/J-0001"
+   },
+   {
+    "text": "J-0002",
+    "href": "/orders/J-0002"
+   },
+   {
+    "text": "J-0003",
+    "href": "/orders/J-0003"
+   },
+   {
+    "text": "J-0004",
+    "href": "/orders/J-0004"
+   },
+   {
+    "text": "J-0005",
+    "href": "/orders/J-0005"
+   }
+  ],
+  "tables": [
+   {
+    "caption": null,
+    "headers": [
+     "受注番号",
+     "顧客名",
+     "商品",
+     "数量",
+     "金額",
+     "ステータス",
+     "至急"
+    ],
+    "rows": [
+     [
+      "J-0001",
+      "青葉商事",
+      "ノートPC",
+      "2",
+      "240,000 円",
+      "受付",
+      "至急"
+     ],
+     [
+      "J-0002",
+      "青葉商事",
+      "マウス",
+      "10",
+      "25,000 円",
+      "出荷済",
+      ""
+     ],
+     [
+      "J-0003",
+      "北山電機",
+      "モニター",
+      "1",
+      "30,000 円",
+      "受付",
+      ""
+     ],
+     [
+      "J-0004",
+      "南風物産",
+      "マウス",
+      "4",
+      "10,000 円",
+      "取消",
+      ""
+     ],
+     [
+      "J-0005",
+      "北山電機",
+      "ノートPC",
+      "1",
+      "120,000 円",
+      "出荷済",
+      "至急"
+     ]
+    ]
+   }
+  ],
+  "descriptions": [],
+  "messages": [
+   {
+    "role": "field",
+    "text": "5 件",
+    "sel": "#count"
+   }
+  ],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「受注検索」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "顧客名の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "ステータスの選択欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "至急のチェックボックス",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「検索」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「新規登録」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「J-0001」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「J-0002」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「J-0003」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「J-0004」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「J-0005」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「5 件」と表示されている",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/orders/J-0001",
+  "title": "受注管理",
+  "h1": "受注詳細",
+  "headings": [],
+  "fields": [],
+  "groups": [],
+  "buttons": [
+   "取消",
+   "一覧へ戻る"
+  ],
+  "links": [
+   {
+    "text": "ログアウト",
+    "href": "/logout"
+   }
+  ],
+  "tables": [],
+  "descriptions": [
+   {
+    "受注番号": "J-0001",
+    "顧客名": "青葉商事",
+    "商品": "ノートPC",
+    "数量": "2",
+    "単価": "120,000 円",
+    "金額": "240000 円",
+    "ステータス": "受付",
+    "至急": "至急",
+    "備考": ""
+   }
+  ],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「受注詳細」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「取消」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「一覧へ戻る」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/orders/new",
+  "title": "受注管理",
+  "h1": "受注登録",
+  "headings": [],
+  "fields": [
+   {
+    "label": "顧客名",
+    "type": "text",
+    "name": "cust",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "商品",
+    "type": "select",
+    "name": "item",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false,
+    "options": [
+     "選択してください",
+     "ノートPC",
+     "マウス",
+     "モニター"
+    ]
+   },
+   {
+    "label": "数量",
+    "type": "text",
+    "name": "qty",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "備考",
+    "type": "textarea",
+    "name": "memo",
+    "id": "",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   }
+  ],
+  "groups": [
+   {
+    "group": "至急",
+    "type": "checkbox",
+    "name": "urgent",
+    "options": [
+     {
+      "label": "至急",
+      "value": "1",
+      "checked": false
+     }
+    ],
+    "visible": true
+   }
+  ],
+  "buttons": [
+   "登録",
+   "一覧へ戻る"
+  ],
+  "links": [
+   {
+    "text": "ログアウト",
+    "href": "/logout"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "via": "受注検索で〈新規登録〉",
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「受注登録」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "顧客名の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "商品の選択欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "数量の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "備考の入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "至急のチェックボックス",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「登録」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「一覧へ戻る」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「ログアウト」リンク",
+    "ok": true
+   }
+  ]
+ }
+]

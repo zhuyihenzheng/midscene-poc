@@ -18,14 +18,15 @@ Read these first:
 - [site test contract](../instructions/site-tests.instructions.md)
 - The reference site: `sites/coupon-demo/tests/` (`site.mjs` and `cases.mjs`) and its design document `sites/coupon-demo/app/設計書.md`
 
-The design document is the **oracle**. Every expected value in `expect` and `check` is quoted from it. The live page only tells you how to operate a screen and where to read a value. Run every command from the repository root. Always pass `--engine playwright`, because that engine needs no model and is the one that fails hard on unresolved prompts.
+The design document is the **oracle**. Every expected value in `expect`, `verify`, and `check` is quoted from it. The live page only tells you how to operate a screen and where to read a value. Run every command from the repository root. Always pass `--engine playwright`, because that engine needs no model and is the one that fails hard on unresolved prompts.
 
 ## 1. Site config
 
-Create `site.mjs` and `run.mjs` by copying coupon-demo and adapting them:
+Run `node core/new-site.mjs <site> --url <start URL>` to create `site.mjs`, `run.mjs`, and `cases.mjs`, then adapt `site.mjs`:
 
-- `url`, `viewport`, and `cookieFile` (`DIR + 'out/session-cookie.json'`).
-- `login`, using credentials read from `process.env` inside the function. Add the keys to `.env.example` with empty values.
+- `url` and `viewport`.
+- `login`, using credentials read from `process.env` inside the function. The scaffold adds the keys to `.env.example` with empty values; the user fills `.env`.
+- `design`: the design document's path.
 - `locators: createLocators(DEFAULTS)`.
 
 Data reset and backend journals (`beforeSuite` / `afterSuite`) need endpoints only the team knows. Write them only when the design document or the user names such an endpoint; otherwise leave them out and note it for step 6.
@@ -61,24 +62,28 @@ Group cases into suites by screen or feature, and assign IDs.
 
 Write `cases.mjs` following the contract:
 
-- a site-specific `pageState()`;
-- `go`, `state`, and `shot` helpers;
+- `makeState()` from `core/steps.mjs`, with `extra` selectors for site-specific values;
 - every case from the coverage table, with `steps` and `expect` in Japanese and expected values quoted from the design document;
 - flows that use only the inventory's verified prompts, or patterns you added to the site's `locators.mjs`;
-- checks over recorded DOM values and journal entries.
+- `verify` rows over recorded page state and journal entries (`check` functions only where `verify` cannot express the logic).
 
-**Done when**
+**Done when** `node sites/<site>/tests/run.mjs --engine playwright --build-only`
 
-- `node sites/<site>/tests/run.mjs --engine playwright --build-only` prints `ロケーター辞書：全指示文を解決可`;
-- every case has at least one non-AI check;
-- every value stated in a case's `expect` is asserted by a check.
+- prints `ロケーター辞書：全指示文を解決可` and no ケース定義の誤り;
+- reports no 設計書に根拠のない期待値 in `観点カバレッジ.md`;
+- leaves no 未対応の項目 in `観点カバレッジ.md` except items the coverage table marks out of scope;
+
+and every value stated in a case's `expect` is asserted by a `verify` or `check` row.
 
 ## 5. Run and triage
 
-Run `node sites/<site>/tests/run.mjs --engine playwright`, then read `結果一覧.md`, `out/<suite>.log`, and the failing case's screenshot in `evidence/`. Classify each NG case:
+Run `node sites/<site>/tests/run.mjs --engine playwright`, then read `結果一覧.md`. The runner classifies each failing case:
 
-- **Test fault**: element not found, timeout, wrong start screen, a snapshot reading `undefined`. Fix the flow, the helper, or the dictionary, and re-run that suite with `--only <file>`.
-- **Suspected defect**: the page shows a value that differs from the design document. Keep the expected value as written in the design document and record the case for step 6.
+- **NG（実行不能）** and **ブロック** are test faults until proven otherwise: element not found, timeout, wrong start screen. Read `out/<suite>.log` and the failing screenshot in `evidence/`, fix the flow, the wait, or the dictionary, and re-run that suite with `--only <file>`. If the screen itself differs from the design document, treat it as a suspected defect.
+- **NG（不一致）** is a suspected defect: the page shows a value that differs from the design document. Keep the expected value as written in the design document. The draft is in `不具合票ドラフト.md`.
+- A **自動検査** NG (JS exception, HTTP 5xx, `undefined` on screen) is a suspected defect as well.
+
+Never change an expected value, add a case to `baseline.json`, or add a `health.ignore` entry to make a run pass. Those are the user's decisions.
 
 **Done when** every remaining NG case is a suspected defect, backed by its design-document value, the observed value, and the evidence screenshot.
 
@@ -86,8 +91,10 @@ Run `node sites/<site>/tests/run.mjs --engine playwright`, then read `結果一�
 
 Reply with:
 
-- the suite and case counts, and the OK/NG result;
+- the suite and case counts, and the OK / NG / ブロック result;
 - each suspected defect, giving case ID, design-document value, observed value, and evidence path;
+- 注意 items from the automatic checks;
 - screens or rules left untested, with the reason;
 - `.env` keys the user must fill;
-- hooks the user should provide (data reset, backend journal).
+- hooks the user should provide (data reset, backend journal);
+- a reminder that the user can accept known defects with `--update-baseline` after filing them.

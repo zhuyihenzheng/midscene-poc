@@ -1,10 +1,12 @@
 // ポイントクーポン交換サイト（デモ）：試験のサイト設定（core/runner.mjs・core/explore.mjs が読む）
 import { spawn } from 'child_process';
 import { createLocators, DEFAULTS } from '../../../core/locators.mjs';
+import { here } from '../../../core/paths.mjs';
+import { fileURLToPath } from 'url';
 
 const PORT = Number(process.env.COUPON_DEMO_PORT || 8090);
 const URL0 = `http://localhost:${PORT}/`;
-const DIR = new URL('./', import.meta.url).pathname;
+const DIR = here(import.meta.url);
 const api = (p, opts) => fetch(URL0 + p.replace(/^\//, ''), { ...opts, headers: { connection: 'close' } });
 
 // 試験用の会員（デモサイトの固定値。実サイトでは .env から読む）
@@ -15,6 +17,8 @@ export default {
   name: 'coupon-demo', dir: DIR, url: URL0, viewport: { width: 1280, height: 1000 }, cookieFile: DIR + 'out/session-cookie.json',
   // 画面が label・fieldset/legend・h1 を備えているため、標準辞書だけで全指示文を解決できる（サイト固有の辞書なし）
   locators: createLocators(DEFAULTS),
+  // 設計書：観点カバレッジ（未対応の項目・根拠のない期待値）の確認に使う
+  design: fileURLToPath(new URL('../app/設計書.md', import.meta.url)),
 
   async login(browser, { viewport } = {}) {
     const context = await browser.newContext({ viewport, locale: 'ja-JP' });
@@ -29,7 +33,7 @@ export default {
   // 起動していなければアプリを起動し、終了時に止める（COUPON_DEMO_FIXED=1 を引き継げば修正版で試験）
   async startApp() {
     if (await api('/login').then(r => r.ok, () => false)) return null;
-    const p = spawn(process.execPath, [new URL('../app/server.mjs', import.meta.url).pathname], { stdio: 'ignore', env: process.env });
+    const p = spawn(process.execPath, [fileURLToPath(new URL('../app/server.mjs', import.meta.url))], { stdio: 'ignore', env: process.env });
     for (let i = 0; i < 50 && !(await api('/login').then(r => r.ok, () => false)); i++) await new Promise(r => setTimeout(r, 100));
     return async () => p.kill();
   },

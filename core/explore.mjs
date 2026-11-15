@@ -1,23 +1,28 @@
 // 画面採取（全サイト共通・モデル不要）：ログイン後にリンクをたどって各画面の構成を JSON / Markdown に書き出す
 //   node core/explore.mjs <site.mjs> [--max 30] [--out <dir>]
+// site.explore.setup()：採取の前に 1 回呼ぶ（データの初期化・試験ユーザーの登録）。site.explore.flows：リンクでたどれない画面を開く操作
 // 出力（既定 <site.mjs のディレクトリ>/inventory/）
 //   inventory.json  画面ごとの見出し・入力項目（ラベル・必須・型・選択肢）・ボタン・リンク・表・メッセージ
 //   inventory.md    同じ内容を人／AI（Copilot 等）が読む形にしたもの。ケース起草の入力にする
 //   各画面の「指示文候補」は標準辞書（core/locators.mjs の DEFAULTS）の書き方で生成し、実画面で 1 要素に解決できたものだけ載せる
+// h1 のない画面は site.state.titleSelector の要素を見出しとして扱う。label のない表形式のフォームは、前のセルの項目名をラベルとして扱う。
 // 注意：リンク（GET）でたどれる画面だけを採取する。フォーム送信後の画面（確認・完了など）は site.explore.flows で操作を指定するか、
 //      Midscene（AI）での初回実行の画面証跡から補う。
-import fs from 'fs'; import path from 'path';
+import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url';
 import { launch } from './browser.mjs';
 import { createLocators, DEFAULTS, KINDS } from './locators.mjs';
 
 const args = process.argv.slice(2);
 const siteFile = path.resolve(args[0] ?? '');
-const site = (await import(siteFile)).default;
+if (!args[0] || !fs.existsSync(siteFile)) { console.error('使い方：node core/explore.mjs sites/<name>/tests/site.mjs [--max 30] [--out <dir>]'); process.exit(1); }
+const site = (await import(pathToFileURL(siteFile).href)).default; // Windows の絶対パスは file:// URL にしないと import できない
 const max = Number(args.includes('--max') ? args[args.indexOf('--max') + 1] : 30);
 const outDir = args.includes('--out') ? path.resolve(args[args.indexOf('--out') + 1]) : path.join(path.dirname(siteFile), 'inventory');
 const loc = site.locators ?? createLocators(DEFAULTS);
 
 const stopApp = site.startApp ? await site.startApp() : null;
+// 採取の前にデータを用意する（site.explore.setup）。DB の初期化・試験ユーザーの登録など、ログインや一覧の表示に必要なもの
+if (site.explore?.setup) await site.explore.setup();
 const browser = await launch();
 const pages = [];
 try {
@@ -51,15 +56,17 @@ console.log(`\n${pages.length} 画面 → ${path.relative(process.cwd(), outDir)
 
 // ---------- 画面の構成を採取（ブラウザ内） ----------
 function collect(page) {
-  return page.evaluate(() => {
+  return page.evaluate(titleSelector => {
     const txt = e => (e?.innerText ?? e?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const visible = e => !!e && e.offsetParent !== null && !e.closest('[hidden]');
-    const labelOf = el => (el.labels?.[0] && txt(el.labels[0])) || el.getAttribute('aria-label') || (el.getAttribute('aria-labelledby') && txt(document.getElementById(el.getAttribute('aria-labelledby')))) || el.placeholder || el.name || '';
+    // label がない表形式のフォームは、同じ行の前のセル（項目名）をラベルとして扱う。「必須」などの印は除く
+    const cellLabel = el => { const prev = el.closest('td, th')?.previousElementSibling; if (!prev) return ''; const c = prev.cloneNode(true); c.querySelectorAll('.req, .required, sup, small').forEach(x => x.remove()); return txt(c).replace(/[（(]?必須[）)]?|[*＊※]/g, '').trim(); };
+    const labelOf = el => (el.labels?.[0] && txt(el.labels[0])) || el.getAttribute('aria-label') || (el.getAttribute('aria-labelledby') && txt(document.getElementById(el.getAttribute('aria-labelledby')))) || cellLabel(el) || el.placeholder || el.name || '';
     const fields = []; const groups = {};
-    for (const el of document.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+    for (const el of document.querySelectorAll('input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]), select, textarea')) {
       const type = el.tagName === 'INPUT' ? el.type : el.tagName.toLowerCase();
       if (type === 'radio' || type === 'checkbox') {
-        const fs = el.closest('fieldset'); const g = fs ? txt(fs.querySelector('legend')) : el.name;
+        const fs = el.closest('fieldset'); const g = fs ? txt(fs.querySelector('legend')) : cellLabel(el) || el.name;
         (groups[g + '|' + type] ??= { group: g, type, name: el.name, options: [], visible: visible(el) }).options.push({ label: labelOf(el), value: el.value, checked: el.checked });
         continue;
       }
@@ -69,27 +76,28 @@ function collect(page) {
         options: el.tagName === 'SELECT' ? [...el.options].map(o => o.textContent.trim()) : undefined });
     }
     return {
-      url: location.pathname + location.search, title: document.title, h1: txt(document.querySelector('h1')) || null,
+      url: location.pathname + location.search, title: document.title, h1: txt(document.querySelector(titleSelector)) || null,
       headings: [...document.querySelectorAll('h2,h3')].map(txt),
       fields, groups: Object.values(groups),
-      buttons: [...document.querySelectorAll('button, input[type=submit], [role=button]')].filter(visible).map(b => txt(b) || b.value),
+      buttons: [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')].filter(visible).map(b => txt(b) || b.value),
       links: [...document.querySelectorAll('a[href]')].filter(visible).map(a => ({ text: txt(a), href: a.getAttribute('href') })),
-      tables: [...document.querySelectorAll('table')].map(t => ({ caption: txt(t.caption) || null, headers: [...t.querySelectorAll('th')].map(txt),
+      tables: [...document.querySelectorAll('table')].filter(t => t.querySelector('tbody tr td') && ![...t.rows].some(r => r.querySelector('input, select, textarea')) && ![...t.rows].every(r => r.cells.length === 2 && r.cells[0].tagName === 'TH')).map(t => ({ caption: txt(t.caption) || null, headers: [...t.querySelectorAll('th')].map(txt),
         rows: [...t.querySelectorAll('tbody tr')].slice(0, 10).map(r => [...r.cells].map(txt)) })),
-      descriptions: [...document.querySelectorAll('dl')].map(dl => Object.fromEntries([...dl.querySelectorAll('dt')].map(dt => [txt(dt), txt(dt.nextElementSibling)]))),
+      descriptions: [...document.querySelectorAll('dl')].map(dl => Object.fromEntries([...dl.querySelectorAll('dt')].map(dt => [txt(dt), txt(dt.nextElementSibling)])))
+        .concat([...document.querySelectorAll('table')].map(t => Object.fromEntries([...t.rows].filter(r => r.cells.length === 2 && r.cells[0].tagName === 'TH' && r.cells[1].tagName === 'TD' && !r.cells[1].querySelector('input, select, textarea')).map(r => [txt(r.cells[0]), txt(r.cells[1])]))).filter(o => Object.keys(o).length)),
       // sel：cases.mjs の画面状態取得（pageState）で値を読むためのセレクター
-      messages: [...document.querySelectorAll('[role=alert], [role=status], .field-error, .error')].filter(visible).map(e => ({ role: e.getAttribute('role') ?? 'field', text: txt(e),
+      messages: [...document.querySelectorAll('[role=alert], [role=status], .field-error, .error, .msg, .message')].filter(visible).map(e => ({ role: e.getAttribute('role') ?? 'field', text: txt(e),
         sel: e.id ? '#' + e.id : e.getAttribute('role') ? `[role=${e.getAttribute('role')}]` : '.' + [...e.classList].join('.') })).filter(m => m.text),
     };
-  });
+  }, site.state?.titleSelector ?? 'h1');
 }
 
 // ---------- 指示文候補：標準の書き方で作り、実画面で 1 要素に解決できたものだけ残す ----------
 async function prompts(page, inv) {
   const cand = [];
   if (inv.h1) cand.push(['aiWaitFor', `「${inv.h1}」画面が表示されている`]);
-  for (const f of inv.fields) if (f.label) cand.push(['aiInput', `${f.label}の入力欄`]);
-  for (const g of inv.groups) for (const o of g.options) cand.push(['aiTap', `${g.group}の「${o.label}」${g.type === 'radio' ? 'ラジオボタン' : 'チェックボックス'}`]);
+  for (const f of inv.fields) if (f.label) cand.push(['aiInput', `${f.label}の${f.type === 'select' ? '選択欄' : '入力欄'}`]);
+  for (const g of inv.groups) for (const o of g.options) cand.push(['aiTap', g.type === 'checkbox' && g.options.length === 1 && (!o.label || o.label === g.group) ? `${g.group}のチェックボックス` : `${g.group}の「${o.label}」${g.type === 'radio' ? 'ラジオボタン' : 'チェックボックス'}`]);
   for (const b of new Set(inv.buttons)) if (b) cand.push(['aiTap', `「${b}」ボタン`]);
   const rowLinks = new Set();
   for (const t of inv.tables) for (const r of t.rows) for (const a of inv.links) if (r.includes(a.text) && r[0] !== a.text) rowLinks.add(`「${r[0]}」の行の「${a.text}」リンク`);

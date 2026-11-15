@@ -1,0 +1,403 @@
+[
+ {
+  "url": "/",
+  "title": "Posts - Flaskr",
+  "h1": "Posts",
+  "headings": [],
+  "fields": [],
+  "groups": [],
+  "buttons": [],
+  "links": [
+   {
+    "text": "Flaskr",
+    "href": "/"
+   },
+   {
+    "text": "Register",
+    "href": "/auth/register"
+   },
+   {
+    "text": "Log In",
+    "href": "/auth/login"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「Posts」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Flaskr」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Register」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/auth/register",
+  "title": "Register - Flaskr",
+  "h1": "Register",
+  "headings": [],
+  "fields": [
+   {
+    "label": "Username",
+    "type": "text",
+    "name": "username",
+    "id": "username",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "Password",
+    "type": "password",
+    "name": "password",
+    "id": "password",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   }
+  ],
+  "groups": [],
+  "buttons": [
+   "Register"
+  ],
+  "links": [
+   {
+    "text": "Flaskr",
+    "href": "/"
+   },
+   {
+    "text": "Register",
+    "href": "/auth/register"
+   },
+   {
+    "text": "Log In",
+    "href": "/auth/login"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「Register」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Usernameの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Passwordの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Register」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Flaskr」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Register」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/auth/login",
+  "title": "Log In - Flaskr",
+  "h1": "Log In",
+  "headings": [],
+  "fields": [
+   {
+    "label": "Username",
+    "type": "text",
+    "name": "username",
+    "id": "username",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "Password",
+    "type": "password",
+    "name": "password",
+    "id": "password",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   }
+  ],
+  "groups": [],
+  "buttons": [
+   "Log In"
+  ],
+  "links": [
+   {
+    "text": "Flaskr",
+    "href": "/"
+   },
+   {
+    "text": "Register",
+    "href": "/auth/register"
+   },
+   {
+    "text": "Log In",
+    "href": "/auth/login"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「Log In」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Usernameの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Passwordの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Flaskr」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Register」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/auth/login",
+  "title": "Log In - Flaskr",
+  "h1": "Log In",
+  "headings": [],
+  "fields": [
+   {
+    "label": "Username",
+    "type": "text",
+    "name": "username",
+    "id": "username",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "Password",
+    "type": "password",
+    "name": "password",
+    "id": "password",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   }
+  ],
+  "groups": [],
+  "buttons": [
+   "Log In"
+  ],
+  "links": [
+   {
+    "text": "Flaskr",
+    "href": "/"
+   },
+   {
+    "text": "Register",
+    "href": "/auth/register"
+   },
+   {
+    "text": "Log In",
+    "href": "/auth/login"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "via": "Log In 画面",
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「Log In」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Usernameの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Passwordの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Flaskr」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Register」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log In」リンク",
+    "ok": true
+   }
+  ]
+ },
+ {
+  "url": "/create",
+  "title": "New Post - Flaskr",
+  "h1": "New Post",
+  "headings": [],
+  "fields": [
+   {
+    "label": "Title",
+    "type": "text",
+    "name": "title",
+    "id": "title",
+    "required": true,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   },
+   {
+    "label": "Body",
+    "type": "textarea",
+    "name": "body",
+    "id": "body",
+    "required": false,
+    "maxlength": null,
+    "inputmode": null,
+    "hint": null,
+    "visible": true,
+    "disabled": false
+   }
+  ],
+  "groups": [],
+  "buttons": [
+   "Save"
+  ],
+  "links": [
+   {
+    "text": "Flaskr",
+    "href": "/"
+   },
+   {
+    "text": "Log Out",
+    "href": "/auth/logout"
+   }
+  ],
+  "tables": [],
+  "descriptions": [],
+  "messages": [],
+  "via": "alice でログインして New Post",
+  "prompts": [
+   {
+    "kind": "aiWaitFor",
+    "prompt": "「New Post」画面が表示されている",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Titleの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiInput",
+    "prompt": "Bodyの入力欄",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Save」ボタン",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Flaskr」リンク",
+    "ok": true
+   },
+   {
+    "kind": "aiTap",
+    "prompt": "「Log Out」リンク",
+    "ok": true
+   }
+  ]
+ }
+]

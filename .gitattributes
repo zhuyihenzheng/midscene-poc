@@ -1,0 +1,6 @@
+# 改行は LF に統一する（Windows で取得しても、生成物と設計書の照合結果が変わらないようにする）
+* text=auto eol=lf
+*.xlsx binary
+*.jpg binary
+*.png binary
+*.zip binary
