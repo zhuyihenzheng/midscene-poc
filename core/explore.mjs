@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // 画面採取（全サイト共通・モデル不要）：ログイン後にリンクをたどって各画面の構成を JSON / Markdown に書き出す
 //   node core/explore.mjs <site.mjs> [--max 30] [--out <dir>]
 // site.explore.setup()：採取の前に 1 回呼ぶ（データの初期化・試験ユーザーの登録）。site.explore.flows：リンクでたどれない画面を開く操作

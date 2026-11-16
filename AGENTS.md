@@ -20,6 +20,10 @@ This repository is a browser screen-testing framework built on Midscene and Play
 | `explore.mjs`, `new-site.mjs` | Page inventory crawler; scaffold for a new site |
 | `paths.mjs`, `browser.mjs` | Cross-platform paths; browser launch and `.env` loading |
 
+## Using the Framework From Another Repository
+
+The framework can be installed as a dependency of an application repository (`npm install --save-dev "github:zhuyihenzheng/midscene-poc#<sha>"`), so a site's tests live next to the application code. `core/paths.mjs` then resolves `ROOT` to the directory that holds `node_modules/midscene-poc` (or to `SCREEN_TEST_ROOT`), independent of the current directory; `FRAMEWORK` is this package's own directory and `EMBEDDED` is true. `.env` and every path written to YAML and reports are relative to `ROOT`. `core/new-site.mjs --dir <path>` scaffolds there with `midscene-poc/core/...` imports. `package.json` exposes `core/*` through `exports` and the `screen-test-new-site` / `screen-test-explore` bins; `playwright` is a runtime dependency and the Midscene packages are optional peers. `test/embedded.test.mjs` covers this mode without a browser.
+
 ## Development Commands
 
 - `npm install` installs the dependencies. Playwright uses the installed Chrome or Edge; run `npx playwright install chromium` only when neither is available.
