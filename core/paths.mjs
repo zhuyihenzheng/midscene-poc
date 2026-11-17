@@ -24,5 +24,16 @@ export const EMBEDDED = ROOT !== FRAMEWORK;
 // 呼び出し元ファイルのディレクトリ（末尾に区切りつき）。site.mjs では const DIR = here(import.meta.url)
 export const here = metaUrl => path.dirname(fileURLToPath(metaUrl)) + path.sep;
 // プロジェクト直下（ROOT）からの相対パス（区切りは常に /。YAML・レポートに書く用）
-// リポジトリの外（--results で指定した別の場所など）は絶対パスのまま返す
-export const rel = p => { const r = path.relative(ROOT, p); return r.startsWith('..') || path.isAbsolute(r) ? p : './' + r.split(path.sep).join('/'); };
+// プロジェクトのすぐ外（2 階層上まで。アプリのリポジトリに組み込んだときの ../docs/設計書.md など）は「../」で始まる相対パス、
+// それより遠い場所（--results で指定した一時ディレクトリなど）は絶対パスのまま返す。
+// コミットされる出力（観点カバレッジ.md など）に、実行した端末の絶対パスを残さないため
+export const relTo = (p, root) => {
+  const r = path.relative(root, p);
+  if (path.isAbsolute(r)) return p;
+  const parts = r.split(path.sep);
+  const up = parts.findIndex(s => s !== '..');
+  if (up === 0) return './' + parts.join('/');
+  return up > 0 && up <= 2 ? parts.join('/') : p;
+};
+// 引数は 1 つだけ受け取る（[...].map(rel) のように使われ、2 つ目に添字が渡されるため）
+export const rel = p => relTo(p, ROOT);

@@ -2,7 +2,7 @@
 import './fixture/quiet.mjs';
 import test from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { ROOT, FRAMEWORK, EMBEDDED, projectRoot, here, rel } from '../core/paths.mjs';
+import { ROOT, FRAMEWORK, EMBEDDED, projectRoot, here, rel, relTo } from '../core/paths.mjs';
 import { evaluate, pick, AI, absent, present, count, includes, matches, partial, every, not, oneOf } from '../core/check.mjs';
 import { createLocators, DEFAULTS } from '../core/locators.mjs';
 import { validateCases } from '../core/validate.mjs';
@@ -29,6 +29,16 @@ test('paths：プロジェクト直下は、clone して使うときはフレー
   // 環境変数が最優先。相対パスは絶対パスにする
   assert.equal(projectRoot(abs('work', 'app', 'node_modules', 'midscene-poc'), { SCREEN_TEST_ROOT: abs('other') }), abs('other'));
   assert.equal(projectRoot(FRAMEWORK, { SCREEN_TEST_ROOT: 'rel' }), path.resolve('rel') + s);
+});
+
+test('paths：プロジェクトのすぐ外は ../ の相対パス、遠い場所は絶対パスのまま', () => {
+  const root = path.resolve(path.sep, 'work', 'app', 'screen-tests') + path.sep;
+  assert.equal(relTo(path.join(root, 'out', 'a.json'), root), './out/a.json');
+  assert.equal(relTo(path.resolve(root, '..', 'docs', '設計書.md'), root), '../docs/設計書.md');
+  assert.equal(relTo(path.resolve(root, '..', '..', 'specs', 'a.md'), root), '../../specs/a.md');
+  const far = path.resolve(path.sep, 'tmp', 'results', 'x.md');
+  assert.equal(relTo(far, root), far);
+  assert.deepEqual([path.join(ROOT, 'a.md'), path.join(ROOT, 'b', 'c.md')].map(rel), ['./a.md', './b/c.md'], 'map から呼んでも添字を基点にしない');
 });
 
 test('paths：OS の区切りによらず、相対パスは / 区切りで、ディレクトリは末尾に区切りが付く', () => {

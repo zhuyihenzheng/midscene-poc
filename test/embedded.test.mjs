@@ -45,6 +45,17 @@ test('組み込み：ひな形はパッケージ名で core を参照し、プ�
   assert.match(yaml, /cookie: \.\/screen-tests\/out\/session-cookie\.json/);
   assert.ok(!yaml.includes(project), 'コミットされる YAML に絶対パスを書かない');
 
+  // 設計書は試験ディレクトリの外（アプリのリポジトリ側）に置く。観点カバレッジには相対パスで書く
+  fs.mkdirSync(path.join(project, 'docs'));
+  fs.writeFileSync(path.join(project, 'docs', '設計書.md'), '| 画面ID | 画面名 |\n|---|---|\n| S01 | トップ |\n');
+  const siteFile = path.join(dir, 'site.mjs');
+  fs.writeFileSync(siteFile, fs.readFileSync(siteFile, 'utf8').replace("// design: DIR + '../docs/設計書.md',", "design: DIR + '../docs/設計書.md',"));
+  const covered = node(elsewhere, path.join(dir, 'run.mjs'), '--engine', 'playwright', '--build-only');
+  assert.equal(covered.status, 0, covered.stdout + covered.stderr);
+  const coverage = fs.readFileSync(path.join(dir, '観点カバレッジ.md'), 'utf8');
+  assert.match(coverage, /設計書：\.\/docs\/設計書\.md/);
+  assert.ok(!coverage.includes(project), 'コミットされる観点カバレッジに絶対パスを書かない');
+
   // 既存の試験を上書きしない。プロジェクトの外は指定できない
   assert.equal(node(project, path.join(core, 'new-site.mjs'), 'order-app', '--dir', 'screen-tests').status, 1);
   assert.equal(node(project, path.join(core, 'new-site.mjs'), 'other', '--dir', '../outside').status, 1);
