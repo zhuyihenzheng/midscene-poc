@@ -19,9 +19,10 @@ after(async () => { await fx.close(); });
 
 test('入力・選択・クリック・遷移・判定が通り、結果一式が出力される', async () => {
   const site = makeSite(fx.url, [{ file: '01-save', title: '保存', cases: [
-    { ...base, id: 'F-01', title: '入力して保存', flow: [...go('/', 'ホーム'), { aiInput: '名前の入力欄', value: '山田' }, { aiInput: '区分の選択欄', value: '法人' }, state('F01_in'),
+    { ...base, id: 'F-01', title: '入力して保存', flow: [...go('/', 'ホーム'), { aiInput: '名前の入力欄', value: '山田' }, { aiInput: '区分の選択欄', value: '法人' },
+      { aiInput: '開始日の入力欄', value: '2026-12-01' }, { aiInput: '開始時刻の入力欄', value: '09:30' }, state('F01_in'),
       { aiTap: '「保存」ボタン' }, screen('保存完了'), state('F01'), shot('F-01 保存完了')],
-      verify: [['入力値', 'F01_in.fields.name.value', '山田'], ['選択肢の表示名', 'F01_in.fields.kind.text', '法人'], ['完了メッセージ', 'F01.status', '保存しました。'], ['保存内容', 'F01.dl', { 名前: '山田', 区分: 'b' }]] },
+      verify: [['入力値', 'F01_in.fields.name.value', '山田'], ['選択肢の表示名', 'F01_in.fields.kind.text', '法人'], ['日付の入力欄', 'F01_in.fields.day.value', '2026-12-01'], ['時刻の入力欄', 'F01_in.fields.at.value', '09:30'], ['完了メッセージ', 'F01.status', '保存しました。'], ['保存内容', 'F01.dl', { 名前: '山田', 区分: 'b' }]] },
     { ...base, id: 'F-02', title: '消えるまで待つ', flow: [...go('/loading', '読込'), { aiWaitFor: '「読み込み中」が表示されていない', timeout: 5000 }, state('F02')],
       verify: [['読み込み表示が消えている', 'F02.text', not(includes('読み込み中'))]] },
   ] }]);

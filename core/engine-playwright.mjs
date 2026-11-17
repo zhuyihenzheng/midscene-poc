@@ -2,7 +2,7 @@
 // - goto → page.goto（site.url からの相対パス）
 // - javascript → page.evaluate（name 付きは Midscene と同じ { name: 値 } 形式で出力 JSON へ）
 // - aiTap / aiHover / aiInput / aiWaitFor → サイトのロケーター辞書（site.locators）で固定ロケーターに解決
-//   aiInput の対象が select なら表示名で選択、aiKeyboardPress はキー入力
+//   aiInput の対象が select なら表示名で選択、日付・時刻などは値（2026-12-01 等）を直接設定、aiKeyboardPress はキー入力
 // - aiAssert → 既定は未実施（skipped）。aiAssert:true のときだけ Midscene の PlaywrightAgent で AI 判定（要モデル）
 // - upload → ファイル選択欄にファイルを設定／download → クリックしてダウンロードを待ち、ファイル名・大きさ・内容（テキストの場合）を記録
 // - 別ウィンドウ（window.open・target=_blank）が開いたら、以降のステップはそのウィンドウに対して行い、閉じたら元のウィンドウへ戻る
@@ -18,6 +18,8 @@ import { continues, DIALOG_HOOK, RESET_DIALOGS } from './steps.mjs';
 import { watch } from './health.mjs';
 
 const DEFAULT_TIMEOUT = 15000;
+// aiInput で打鍵せず値を直接設定する入力部品（value は 2026-12-01・09:30・#ff0000 などの値の形式で書く）
+const VALUE_TYPES = new Set(['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range']);
 
 // 別ウィンドウの開閉を確実に追うための目印（全ページの読み込み時に入れる）。
 // 開く：window.open の呼び出しと target=_blank のリンクのクリックで __popupExpected を立てる → エンジンは新しいウィンドウが現れるまで待つ
@@ -196,7 +198,11 @@ async function operate(page, kind, st, timeout, ctx) {
   await target.scrollIntoViewIfNeeded({ timeout });
   if (kind === 'aiTap') return target.click({ timeout });
   if (kind === 'aiHover') return target.hover({ timeout });
-  if (await target.evaluate(e => e.tagName === 'SELECT', null, { timeout })) return target.selectOption({ label: String(st.value) }, { timeout });
+  const type = await target.evaluate(e => e.tagName === 'SELECT' ? 'select' : e.type, null, { timeout });
+  if (type === 'select') return target.selectOption({ label: String(st.value) }, { timeout });
+  // 日付・時刻などの専用部品は、打鍵がブラウザー・ロケールごとの表示形式（年/月/日 の欄など）で解釈され、
+  // 「2026-12-01」を 1 文字ずつ打つと別の値になる。値の形式（ISO）のまま直接設定する
+  if (VALUE_TYPES.has(type)) return target.fill(String(st.value), { timeout });
   // 利用者の入力と同じく 1 文字ずつ打鍵する（maxlength・入力時の変換処理も実画面どおりに効く）
   await target.fill('', { timeout });
   await target.pressSequentially(String(st.value), { timeout });
