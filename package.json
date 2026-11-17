@@ -2,9 +2,26 @@
   "name": "midscene-poc",
   "version": "1.0.0",
   "description": "Browser screen-testing framework on Midscene and Playwright",
+  "exports": {
+    "./core/*": "./core/*",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "screen-test-new-site": "core/new-site.mjs",
+    "screen-test-explore": "core/explore.mjs"
+  },
+  "files": [
+    "core/",
+    "docs/",
+    ".github/instructions/",
+    ".github/prompts/",
+    "AGENTS.md",
+    "README.md",
+    ".env.example"
+  ],
   "scripts": {
-    "test": "node --test --test-concurrency=1 test/unit.test.mjs test/engine.test.mjs test/ai.test.mjs test/agent-model.test.mjs test/demo.test.mjs",
-    "test:unit": "node --test test/unit.test.mjs",
+    "test": "node --test --test-concurrency=1 test/unit.test.mjs test/embedded.test.mjs test/engine.test.mjs test/ai.test.mjs test/agent-model.test.mjs test/demo.test.mjs",
+    "test:unit": "node --test test/unit.test.mjs test/embedded.test.mjs",
     "demo": "node sites/coupon-demo/tests/run.mjs --engine playwright",
     "demo:fixed": "node sites/coupon-demo/tests/run-fixed.mjs",
     "build": "node sites/coupon-demo/tests/run.mjs --engine playwright --build-only",
@@ -16,18 +33,30 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "devDependencies": {
-    "@midscene/cli": "^1.15.3",
-    "@midscene/web": "^1.15.3",
-    "@playwright/test": "^1.64.0",
-    "playwright": "^1.64.0"
-  },
   "dependencies": {
     "dotenv": "^16.6.1",
     "exceljs": "^4.4.0",
     "js-yaml": "^4.1.0",
     "pixelmatch": "^5.3.0",
+    "playwright": "^1.64.0",
     "pngjs": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@midscene/cli": "^1.15.3",
+    "@midscene/web": "^1.15.3"
+  },
+  "peerDependenciesMeta": {
+    "@midscene/cli": {
+      "optional": true
+    },
+    "@midscene/web": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@midscene/cli": "^1.15.3",
+    "@midscene/web": "^1.15.3",
+    "@playwright/test": "^1.64.0"
   },
   "engines": {
     "node": ">=20"

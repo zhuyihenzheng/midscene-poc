@@ -2,7 +2,7 @@
 import './fixture/quiet.mjs';
 import test from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { ROOT, here, rel } from '../core/paths.mjs';
+import { ROOT, FRAMEWORK, EMBEDDED, projectRoot, here, rel, relTo } from '../core/paths.mjs';
 import { evaluate, pick, AI, absent, present, count, includes, matches, partial, every, not, oneOf } from '../core/check.mjs';
 import { createLocators, DEFAULTS } from '../core/locators.mjs';
 import { validateCases } from '../core/validate.mjs';
@@ -18,6 +18,28 @@ import { SUITES as DEMO } from '../sites/coupon-demo/tests/cases.mjs';
 import demoSite from '../sites/coupon-demo/tests/site.mjs';
 
 const mk = (id, extra = {}) => ({ id, screen: 'S01 画面', kind: '表示', title: 't', steps: 's', expect: 'e', flow: [{ goto: '/' }, { javascript: '1', name: id.replace('-', '') }], verify: [['観点', id.replace('-', ''), 1]], ...extra });
+
+test('paths：プロジェクト直下は、clone して使うときはフレームワーク直下、依存パッケージのときは node_modules を持つディレクトリ', () => {
+  const s = path.sep, abs = (...p) => path.resolve(s, ...p) + s;
+  assert.equal(ROOT, FRAMEWORK); assert.equal(EMBEDDED, false);
+  assert.equal(projectRoot(abs('work', 'midscene-poc'), {}), abs('work', 'midscene-poc'));
+  assert.equal(projectRoot(abs('work', 'app', 'screen-tests', 'node_modules', 'midscene-poc'), {}), abs('work', 'app', 'screen-tests'));
+  // 入れ子の node_modules は、いちばん内側（実際にこのパッケージを持っているもの）を基準にする
+  assert.equal(projectRoot(abs('a', 'node_modules', 'x', 'node_modules', 'midscene-poc'), {}), abs('a', 'node_modules', 'x'));
+  // 環境変数が最優先。相対パスは絶対パスにする
+  assert.equal(projectRoot(abs('work', 'app', 'node_modules', 'midscene-poc'), { SCREEN_TEST_ROOT: abs('other') }), abs('other'));
+  assert.equal(projectRoot(FRAMEWORK, { SCREEN_TEST_ROOT: 'rel' }), path.resolve('rel') + s);
+});
+
+test('paths：プロジェクトのすぐ外は ../ の相対パス、遠い場所は絶対パスのまま', () => {
+  const root = path.resolve(path.sep, 'work', 'app', 'screen-tests') + path.sep;
+  assert.equal(relTo(path.join(root, 'out', 'a.json'), root), './out/a.json');
+  assert.equal(relTo(path.resolve(root, '..', 'docs', '設計書.md'), root), '../docs/設計書.md');
+  assert.equal(relTo(path.resolve(root, '..', '..', 'specs', 'a.md'), root), '../../specs/a.md');
+  const far = path.resolve(path.sep, 'tmp', 'results', 'x.md');
+  assert.equal(relTo(far, root), far);
+  assert.deepEqual([path.join(ROOT, 'a.md'), path.join(ROOT, 'b', 'c.md')].map(rel), ['./a.md', './b/c.md'], 'map から呼んでも添字を基点にしない');
+});
 
 test('paths：OS の区切りによらず、相対パスは / 区切りで、ディレクトリは末尾に区切りが付く', () => {
   assert.equal(rel(path.join(ROOT, 'sites', 'x', 'tests', 'a.yaml')), './sites/x/tests/a.yaml');

@@ -1,21 +1,31 @@
-// 新しいサイトの試験ひな形を作る：node core/new-site.mjs <name> [--url http://localhost:3000/]
+#!/usr/bin/env node
+// 新しいサイトの試験ひな形を作る：node core/new-site.mjs <name> [--url http://localhost:3000/] [--dir <出力先>]
 //   sites/<name>/tests/{site.mjs, run.mjs, cases.mjs} を作り、.env.example にログイン項目のキーを足す。
+//   --dir：プロジェクト直下からの出力先（既定 sites/<name>/tests）。アプリのリポジトリに組み込む場合は --dir . など。
+//   フレームワークを依存パッケージとして入れている場合、ひな形の import は「midscene-poc/core/…」になる。
 //   続きは docs/new-site-guide.md（設計書の用意 → 画面採取 → 観点表 → ケース → 実行）。
 import fs from 'fs'; import path from 'path';
-import { ROOT } from './paths.mjs';
+import { ROOT, EMBEDDED } from './paths.mjs';
 
 const args = process.argv.slice(2);
 const name = args[0];
 const url = (args.includes('--url') ? args[args.indexOf('--url') + 1] : 'http://localhost:3000/').replace(/\/?$/, '/');
 if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) { console.error('使い方：node core/new-site.mjs <name> [--url http://localhost:3000/]\n  name は英小文字・数字・ハイフン（例 order-system）'); process.exit(1); }
-const dir = path.join(ROOT, 'sites', name, 'tests');
-if (fs.existsSync(dir)) { console.error(`すでにあります：sites/${name}/tests`); process.exit(1); }
+const out = (args.includes('--dir') ? args[args.indexOf('--dir') + 1] : path.join('sites', name, 'tests')) || '.';
+const dir = path.resolve(ROOT, out);
+const shown = path.relative(ROOT, dir).split(path.sep).join('/') || '.';
+if (path.relative(ROOT, dir).startsWith('..')) { console.error(`--dir はプロジェクト直下（${ROOT}）の中を指定してください`); process.exit(1); }
+if (fs.existsSync(path.join(dir, 'site.mjs'))) { console.error(`すでにあります：${shown}/site.mjs`); process.exit(1); }
+// 依存パッケージとして使う場合はパッケージ名で、clone して使う場合は相対パスで core を参照する
+const core = EMBEDDED ? 'midscene-poc/core/' : path.relative(dir, path.join(ROOT, 'core')).split(path.sep).join('/') + '/';
+const runCmd = `node ${shown === '.' ? '' : shown + '/'}run.mjs`;
+const exploreCmd = EMBEDDED ? `npx screen-test-explore ${shown === '.' ? '' : shown + '/'}site.mjs` : `node core/explore.mjs ${shown}/site.mjs`;
 const KEY = name.toUpperCase().replace(/-/g, '_');
 
 const files = {
   'site.mjs': `// ${name}：試験のサイト設定（core/runner.mjs・core/explore.mjs が読む）
-import { createLocators, DEFAULTS } from '../../../core/locators.mjs';
-import { here } from '../../../core/paths.mjs';
+import { createLocators, DEFAULTS } from '${core}locators.mjs';
+import { here } from '${core}paths.mjs';
 
 const DIR = here(import.meta.url);
 const URL0 = process.env.${KEY}_URL || '${url}';
@@ -49,8 +59,8 @@ export default {
   explore: { flows: [] },
 };
 `,
-  'run.mjs': `// 実行：node sites/${name}/tests/run.mjs --engine playwright [--only 01-xxx] [--build-only] [--eval-only]（--help で一覧）
-import { runTests } from '../../../core/runner.mjs';
+  'run.mjs': `// 実行：${runCmd} --engine playwright [--only 01-xxx] [--build-only] [--eval-only]（--help で一覧）
+import { runTests } from '${core}runner.mjs';
 import site from './site.mjs';
 import { SUITES } from './cases.mjs';
 
@@ -58,8 +68,8 @@ await runTests({ ...site, suites: SUITES });
 `,
   'cases.mjs': `// ${name} 画面試験：ケース定義（試験仕様書・YAML・判定の単一ソース）
 // 期待値はすべて設計書から取る。画面は「どう操作し、どこから値を読むか」だけを教える（inventory/inventory.md）。
-import { makeState, go, shot } from '../../../core/steps.mjs';
-import { AI, absent, count, includes, partial } from '../../../core/check.mjs';
+import { makeState, go, shot } from '${core}steps.mjs';
+import { AI, absent, count, includes, partial } from '${core}check.mjs';
 
 const state = makeState();
 const screen = title => ({ aiWaitFor: \`「\${title}」画面が表示されている\`, timeout: 15000 });
@@ -80,13 +90,15 @@ fs.mkdirSync(dir, { recursive: true });
 for (const [f, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), body);
 const envExample = path.join(ROOT, '.env.example');
 const keys = `\n# ${name}\n${KEY}_URL=\n${KEY}_USER=\n${KEY}_PASS=\n`;
+// アプリのリポジトリに組み込む場合は .env.example がまだ無いことが多いので、無ければ作る
+if (!fs.existsSync(envExample) && EMBEDDED) fs.writeFileSync(envExample, '# 画面試験の設定。値は .env に書く（.env はコミットしない）\nTEST_ENGINE=playwright\nTEST_BROWSER_CHANNEL=chrome\n');
 if (fs.existsSync(envExample) && !fs.readFileSync(envExample, 'utf8').includes(`${KEY}_USER=`)) fs.appendFileSync(envExample, keys);
-console.log(`作成：sites/${name}/tests/{site.mjs, run.mjs, cases.mjs}
+console.log(`作成：${shown}/{site.mjs, run.mjs, cases.mjs}
 .env.example に ${KEY}_URL / ${KEY}_USER / ${KEY}_PASS を追加（値は .env に書く）
 
 次の手順
   1. site.mjs の login を実画面に合わせる
-  2. node core/explore.mjs sites/${name}/tests/site.mjs          画面採取 → inventory/inventory.md
+  2. ${exploreCmd}          画面採取 → inventory/inventory.md
   3. 設計書と inventory をもとに cases.mjs を書く（Copilot なら /new-site-tests）
-  4. node sites/${name}/tests/run.mjs --engine playwright --build-only   ケース定義・辞書・観点カバレッジの検査
-  5. node sites/${name}/tests/run.mjs --engine playwright                実行`);
+  4. ${runCmd} --engine playwright --build-only   ケース定義・辞書・観点カバレッジの検査
+  5. ${runCmd} --engine playwright                実行`);

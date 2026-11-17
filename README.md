@@ -71,7 +71,7 @@ node sites/<站点>/tests/run.mjs --only 03-input     # 只跑一个 suite
 node sites/<站点>/tests/run.mjs --retries 1         # 操作失败的 suite 重跑一次
 node sites/<站点>/tests/run.mjs --visual            # 把截图和基准图片逐像素比较，发现布局、颜色的变化
 node sites/<站点>/tests/run.mjs --workers 4         # 并行执行 suite（仅限 site.parallel = true、suite 之间不共享数据的站点）
-node core/new-site.mjs <站点> --url <起始URL>       # 生成新站点的模板
+node core/new-site.mjs <站点> --url <起始URL>       # 生成新站点的模板（--dir 指定输出目录）
 node core/explore.mjs sites/<站点>/tests/site.mjs   # 采集画面（输入项、按钮、消息）
 npm test                                            # 框架自身的测试
 ```
@@ -79,6 +79,26 @@ npm test                                            # 框架自身的测试
 ## 给新网站建测试
 
 见 [docs/new-site-guide.md](docs/new-site-guide.md)。用 GitHub Copilot 时输入 `/new-site-tests site=<站点> design=<设计书路径>`；用 Claude Code 时让它按 `.github/prompts/new-site-tests.prompt.md` 的流程做。
+
+## 放进应用自己的仓库
+
+试验也可以不放在本仓库的 `sites/` 下，而是和被测应用的代码放在一起：改代码、改用例、改设计书在同一个 PR 里完成。做法是把本框架作为依赖安装（固定到提交 SHA），在应用仓库里建一个试验目录：
+
+```bash
+mkdir screen-tests && cd screen-tests
+npm init -y
+npm install --save-dev "github:zhuyihenzheng/midscene-poc#<提交 SHA>"
+npx screen-test-new-site <站点> --dir . --url http://localhost:8080/
+node run.mjs --engine playwright --build-only
+```
+
+- 生成的 `site.mjs`、`cases.mjs`、`run.mjs` 用包名引用框架（`midscene-poc/core/…`）。
+- “项目根目录”是装着 `node_modules/midscene-poc` 的那个目录（上例是 `screen-tests/`）：`.env` 放在那里，报告和 YAML 里的路径都相对于它，与执行命令时所在的目录无关。需要另行指定时设环境变量 `SCREEN_TEST_ROOT`。
+- 用例的写法规范在 `node_modules/midscene-poc/.github/instructions/site-tests.instructions.md`。
+- Playwright 引擎所需的依赖会一起安装。用 AI 引擎（`--engine ai` / `midscene`、`--heal`、`--ai-assert`）时，在试验目录里另外安装 `@midscene/web` 和 `@midscene/cli`。
+- 不能从 GitHub 安装的环境：在本仓库执行 `npm pack`，把生成的 `.tgz` 放到内部制品库或直接 `npm install <路径>.tgz`。
+
+clone 本仓库、把试验放在 `sites/<站点>/tests/` 的用法不变。
 
 ## 用 AI 模型（可选）
 

@@ -59,6 +59,18 @@ node sites/<name>/tests/run.mjs --engine midscene                    # 有模型
 
 画面采集只能沿着链接（GET）进入画面。确认画面、完成画面、错误状态这类需要操作才能到达的画面，要在 `site.mjs` 的 `explore.flows` 里写好操作步骤再采集，写法参照 coupon-demo。
 
+## 把试验放在应用的仓库里
+
+上面的命令以“clone 本仓库、试验放在 `sites/<name>/tests/`”为前提。如果想让试验和应用代码放在同一个仓库，按 README 的“放进应用自己的仓库”安装后，命令对应如下（在试验目录里执行）：
+
+| 本仓库内 | 应用仓库的试验目录内 |
+|---|---|
+| `node core/new-site.mjs <name> --url <URL>` | `npx screen-test-new-site <name> --dir . --url <URL>` |
+| `node core/explore.mjs sites/<name>/tests/site.mjs` | `npx screen-test-explore site.mjs` |
+| `node sites/<name>/tests/run.mjs …` | `node run.mjs …` |
+
+`site.mjs` 里的 `design` 指向应用仓库里的设计书（Markdown）。`.env` 放在试验目录。
+
 ## 结果怎么看
 
 执行后先看 `report.html`（或 `結果一覧.md`）。命令的结束代码只反映"和基准相比有没有意外"：
