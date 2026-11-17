@@ -17,6 +17,7 @@ export async function startFixture() {
     switch (url.pathname) {
       case '/': return html(page('ホーム', `<form action="/saved"><p><label for="name">名前</label> <input id="name" name="name"></p>
 <p><label for="kind">区分</label> <select id="kind" name="kind"><option value="">選択してください</option><option value="a">個人</option><option value="b">法人</option></select></p>
+<p><label for="day">開始日</label> <input type="date" id="day" name="day"> <label for="at">開始時刻</label> <input type="time" id="at" name="at"></p>
 <button type="submit">保存</button></form>`));
       case '/saved': return html(page('保存完了', `<p role="status">保存しました。</p><dl><dt>名前</dt><dd>${url.searchParams.get('name') ?? ''}</dd><dt>区分</dt><dd>${url.searchParams.get('kind') ?? ''}</dd></dl>`));
       case '/broken': return html(page('集計', `<p>合計：undefined 円</p><script>fetch('/api/fail'); setTimeout(() => { throw new Error('boom'); }, 0);</script>`));

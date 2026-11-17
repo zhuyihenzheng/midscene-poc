@@ -4,6 +4,9 @@
 //   メッセージ 「…。」で括られた文言、表のセルのうち「。」で終わる文言、見出しに「メッセージ」「message」を含む列のセル（英語の画面など）。ケースの期待値（verify・check・aiWaitFor）に出てくれば対応あり
 //             「残り N 枚」のような可変部（半角英大文字 1 文字、{…}）は任意の文字列として照合する
 //   要件 ID   site.coverage.idPattern（例 /REQ-\d+/g）を指定した場合。ケースの refs に書いてあれば対応あり
+//   チェック  見出しに「チェック内容」と「項番」（または No）の列を持つ表（入力チェック・相関チェックの一覧）の各行。
+//             キーは「直前の見出しの番号-項番」（例 ### 5.2 相関チェック の項番 6 → 5.2-6）。ケースの refs に書いてあれば対応あり
+//             エラーコード＋埋め字で書かれ、文言の原文がない設計書でも、チェックの一覧とケースを対応づけられる
 // 逆方向：ケースの期待値のうち「。」で終わる文言が設計書にない場合、「設計書に根拠のない期待値」として挙げる
 // （画面に出ていた文言をそのまま期待値にすると、不具合を「正しい」としてしまうため）。
 import fs from 'fs';
@@ -17,9 +20,16 @@ export function designItems(md, { idPattern, screenId = /^[A-Z]{1,3}\d{2,}$/ } =
   const items = []; const seen = new Set();
   const add = (type, key, text) => { if (!seen.has(type + key)) { seen.add(type + key); items.push({ type, key, text }); } };
   let header = null; // いま読んでいる表の見出し行（表の外では null）
+  let section = ''; // 直前の見出しの番号（例 5.2）。番号のない見出しは見出しの文言
   for (const line of md.split('\n')) {
+    const heading = line.match(/^#{1,6}\s+(.+?)\s*$/);
+    if (heading) section = heading[1].match(/^(\d+(?:\.\d+)*)(?:[.．\s]|$)/)?.[1] ?? heading[1];
     const cells = line.trim().startsWith('|') ? line.trim().split('|').slice(1, -1).map(c => c.trim().replace(/^`|`$/g, '')) : null;
     if (!cells) header = null; else header ??= cells;
+    // チェックの一覧：項番の列とチェック内容の列を持つ表の各行（区切り行は除く）
+    const ci = header?.findIndex(c => c.includes('チェック内容')) ?? -1;
+    const ni = header?.findIndex(c => /^(項番|No\.?)$/i.test(c)) ?? -1;
+    if (cells && cells !== header && ci >= 0 && ni >= 0 && cells[ni] && !/^:?-+:?$/.test(cells[ni]) && cells[ci]) add('チェック', `${section}-${cells[ni]}`, cells[ci]);
     // 画面 ID の形をした先頭セルは、商品コードなど別の表にも現れるため、画面一覧の表だけを対象にする
     if (cells && header.some(c => c.includes('画面')) && screenId.test(cells[0]) && cells[1]) add('画面', cells[0], cells[1]);
     // 「メッセージ」列：句点で終わらない文言（英語など）もメッセージとして拾う
@@ -47,7 +57,7 @@ export function analyze(md, SUITES, opt = {}) {
   const texts = new Map(cases.map(c => [c.id, expectedTexts(c)]));
   const rows = designItems(md, opt).map(it => {
     const re = it.type === 'メッセージ' ? pattern(it.text) : null;
-    const by = cases.filter(c => it.type === '画面' ? c.screen.includes(it.key) : it.type === '要件' ? (c.refs ?? []).includes(it.key) : texts.get(c.id).some(t => re.test(t))).map(c => c.id);
+    const by = cases.filter(c => it.type === '画面' ? c.screen.includes(it.key) : it.type === '要件' || it.type === 'チェック' ? (c.refs ?? []).includes(it.key) : texts.get(c.id).some(t => re.test(t))).map(c => c.id);
     return { ...it, cases: by };
   });
   // 逆方向：メッセージらしい期待値（「。」で終わる）が設計書にあるか
@@ -69,13 +79,13 @@ export function writeCoverage(file, site, SUITES) {
     `設計書：${[].concat(site.design).map(rel).join('、')}　ケース：${cases.length} 件`, '',
     `- 設計書から拾った項目 **${rows.length}**、ケースあり **${rows.length - uncovered.length}**、未対応 **${uncovered.length}**`,
     `- 設計書に根拠のない期待値 **${unfounded.length}** 件`, '',
-    '> 機械的に拾えるのは画面・メッセージ（・要件 ID）だけ。業務ルールや境界値の網羅は、この表ではなく観点表のレビューで確認する。', ''];
-  if (uncovered.length) L.push('## 未対応の項目（ケースを追加するか、対象外の理由を残す）', '', ...uncovered.map(r => `- ${r.type}：${r.text}${r.type === '画面' ? `（${r.key}）` : ''}`), '');
+    '> 機械的に拾えるのは画面・メッセージ・チェックの一覧（・要件 ID）だけ。業務ルールや境界値の網羅は、この表ではなく観点表のレビューで確認する。', ''];
+  if (uncovered.length) L.push('## 未対応の項目（ケースを追加するか、対象外の理由を残す）', '', ...uncovered.map(r => `- ${r.type}：${r.type === 'チェック' ? `${r.key} ` : ''}${r.text}${r.type === '画面' ? `（${r.key}）` : ''}`), '');
   if (unfounded.length) L.push('## 設計書に根拠のない期待値（設計書を確認する。画面の表示を写した期待値は不具合を見逃す）', '', ...unfounded.map(u => `- ${u.id}：「${u.text}」`), '');
   L.push('## 設計書の項目とケース', '', '| 種別 | 設計書の項目 | ケース |', '|---|---|---|',
-    ...rows.map(r => `| ${r.type} | ${r.type === '画面' ? `${r.key} ${r.text}` : r.text.replace(/\|/g, '｜')} | ${r.cases.join(', ') || '**なし**'} |`), '',
+    ...rows.map(r => `| ${r.type} | ${r.type === '画面' || r.type === 'チェック' ? `${r.key} ${r.text}` : r.text.replace(/\|/g, '｜')} | ${r.cases.join(', ') || '**なし**'} |`), '',
     '## 画面×区分のケース数', '', `| 画面 | ${kinds.join(' | ')} | 計 |`, `|---|${kinds.map(() => '---').join('|')}|---|`,
     ...screens.map(sc => `| ${sc} | ${kinds.map(k => cases.filter(c => c.screen === sc && c.kind === k).length || '').join(' | ')} | ${cases.filter(c => c.screen === sc).length} |`), '');
   fs.writeFileSync(file, L.join('\n'));
-  return { total: rows.length, covered: rows.length - uncovered.length, uncovered: uncovered.map(r => r.type === '画面' ? `${r.key} ${r.text}` : r.text), unfounded };
+  return { total: rows.length, covered: rows.length - uncovered.length, uncovered: uncovered.map(r => r.type === '画面' || r.type === 'チェック' ? `${r.key} ${r.text}` : r.text), unfounded };
 }
