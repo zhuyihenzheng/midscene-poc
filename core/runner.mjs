@@ -3,7 +3,7 @@
 //
 // 引数
 //   --engine playwright|ai|midscene  playwright＝固定ロケーター（モデル不要）／ai＝同じブラウザ上で Midscene の AI が操作（要モデル）／
-//                                 midscene＝YAML を Midscene CLI で実行（要モデル）。既定は TEST_ENGINE、なければ midscene
+//                                 midscene＝YAML を Midscene CLI で実行（要モデル）。既定は TEST_ENGINE、なければ playwright
 //   --only 01-xxx,02-yyy          実行するスイートを絞る
 //   --build-only                  YAML・試験仕様書・観点カバレッジの生成と、ケース定義・ロケーター辞書の検査だけ行う（ブラウザ不要）
 //   --eval-only                   実行せず、前回の出力を判定し直す
@@ -62,7 +62,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
   const unknown = only?.filter(f => !SUITES.some(s => s.file === f)) ?? [];
   if (unknown.length) throw new Error(`--only に存在しないスイート：${unknown.join(', ')}（指定できるのは ${SUITES.map(s => s.file).join(', ')}）`);
   const suites = SUITES.filter(s => !only || only.includes(s.file));
-  const engine = opt('--engine') ?? (process.env[site.engineEnv ?? 'TEST_ENGINE'] || process.env.TEST_ENGINE || 'midscene');
+  const engine = opt('--engine') ?? (process.env[site.engineEnv ?? 'TEST_ENGINE'] || process.env.TEST_ENGINE || 'playwright');
   if (!['midscene', 'playwright', 'ai'].includes(engine)) throw new Error('--engine は playwright / ai / midscene');
   const inBrowser = engine !== 'midscene'; // playwright・ai はこのプロセスの Playwright で実行する
   const flags = { aiAssert: args.includes('--ai-assert'), heal: args.includes('--heal'), retries: Number(opt('--retries') ?? 0),
