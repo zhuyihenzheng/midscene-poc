@@ -99,7 +99,7 @@ node sites/<name>/tests/run.mjs --engine midscene                    # 有模型
   - `chat.useAgentsMdFile`：读取 AGENTS.md；
   - `github.copilot.chat.codeGeneration.useInstructionFiles`：读取 `.github/copilot-instructions.md`；
   - `chat.includeApplyingInstructions`：编辑 `sites/**/tests/**` 时自动附加用例规范。
-- 本机要有 Node 和 Chrome，并已执行 `npm install`。不需要 AI 模型。
+- 本机要有 Node 和 Chrome，并已执行 `npm install --omit=dev`。不需要 AI 模型。
 
 ### 使用方法
 

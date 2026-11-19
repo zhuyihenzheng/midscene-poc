@@ -13,7 +13,7 @@
 ```bash
 git clone https://github.com/zhuyihenzheng/midscene-poc.git
 cd midscene-poc
-npm install
+npm install --omit=dev      # 只装 Playwright 引擎需要的依赖（不装 Midscene）
 copy .env.example .env      # macOS / Linux：cp .env.example .env
 npm run demo
 ```
@@ -27,6 +27,8 @@ npm run demo
 还有第二个演示站点 `npm run demo:legacy`：模仿老式业务系统的受注管理画面（表格布局的表单、没有 label 和 h1、用 `alert` / `confirm` 弹窗报错和确认、检索结果异步显示），20 个用例，埋了 2 个缺陷。它用来说明这类画面也能测。
 
 没有 Chrome 和 Edge 时，执行 `npx playwright install chromium`，并把 `.env` 里的 `TEST_BROWSER_CHANNEL` 改成 `chromium`。
+
+`--omit=dev` 不安装 Midscene 及其依赖（puppeteer、ffmpeg、sharp 等），用例的执行和判定都不受影响。要用 AI 引擎（见「用 AI 模型」）或执行框架自身的测试（`npm test`）时，改用不带参数的 `npm install` 安装全部依赖。
 
 ## 输出
 
@@ -102,7 +104,7 @@ clone 本仓库、把试验放在 `sites/<站点>/tests/` 的用法不变。
 
 ## 用 AI 模型（可选）
 
-在 `.env` 里填 `MIDSCENE_MODEL_*`（OpenAI 兼容接口，本地 LM Studio 或云端 API 都可以），然后：
+先用不带参数的 `npm install` 装上 Midscene（`--omit=dev` 不会安装它），在 `.env` 里填 `MIDSCENE_MODEL_*`（OpenAI 兼容接口，本地 LM Studio 或云端 API 都可以），然后：
 
 - `--engine ai`：在同一个 Playwright 浏览器里，由 AI 看画面完成全部操作。弹出窗口、文件上传下载、弹窗、自动检查、截图对比都和 Playwright 引擎一样可用；
 - `--engine midscene`：把用例转成 YAML 交给 Midscene CLI 执行（只在第一个窗口里操作，不能上传下载）；
