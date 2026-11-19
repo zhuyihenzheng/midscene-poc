@@ -36,7 +36,7 @@
 //   visual                    任意：見た目の比較の設定（{ threshold: 0.001, mask: ['セレクター'] }）
 //   report: { title, target(), basis, sections({ pw, aiUsed }) → md 行の配列 }  任意
 import fs from 'fs'; import path from 'path'; import { spawn } from 'child_process';
-import yaml from 'js-yaml';
+import { dump as yamlDump } from 'js-yaml';
 import { launch, saveCookies, bundledChromium } from './browser.mjs'; // .env もここで読み込む
 import { ROOT, rel } from './paths.mjs';
 import { evaluate } from './check.mjs';
@@ -74,7 +74,7 @@ export async function runTests(site, args = process.argv.slice(2), { setExitCode
     const doc = { web: { url: site.url, cookie: rel(site.cookieFile), viewportWidth: site.viewport.width, viewportHeight: site.viewport.height,
       output: rel(OUT + `out/${s.file}.json`) },
       tasks: s.cases.map(c => ({ name: `${c.id}_${c.title}`, continueOnError: true, flow: c.flow.flatMap((st, i) => toYamlSteps(st, { dialogs: !!site.dialogs, first: i === 0 })).map(site.yamlStep ?? (st => st)) })) };
-    fs.writeFileSync(OUT + s.file + '.yaml', `# 自動生成（cases.mjs）：${s.title}\n` + yaml.dump(doc, { lineWidth: 200, noRefs: true }));
+    fs.writeFileSync(OUT + s.file + '.yaml', `# 自動生成（cases.mjs）：${s.title}\n` + yamlDump(doc, { lineWidth: 200, noRefs: true }));
   }
   await writeSpec(OUT + '試験仕様書.xlsx', SUITES);
   const problems = validateCases(SUITES);
