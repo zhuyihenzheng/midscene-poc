@@ -56,7 +56,10 @@ export async function writeResult(file, OUT, rs, evidence = {}) {
     const buf = fs.readFileSync(OUT + e.file); const w = jpegSize(buf);
     const width = 760, height = Math.round(width * w.h / w.w);
     we.addImage(wb.addImage({ buffer: buf, extension: 'jpeg' }), { tl: { col: 0, row }, ext: { width, height } });
-    row += 1 + Math.ceil(height / 20) + 1;
+    // 画像の下の行は高さを明示する（未指定だと既定の行高はアプリごとに違い、Numbers や LibreOffice では画像が次の見出しに重なる）
+    const span = Math.ceil(height / 20);
+    for (let i = 1; i <= span + 1; i++) we.getRow(row + i).height = 15; // 15pt＝20px
+    row += 1 + span + 1;
   }
   await wb.xlsx.writeFile(file);
 }
